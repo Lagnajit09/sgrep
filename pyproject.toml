@@ -1,0 +1,16 @@
+[project]
+name = "sgrep-jev"
+version = "0.1.0"
+description = "Semantic grep for codebases, powered by Jev (TypeSafe System One)."
+readme = "README.md"
+requires-python = ">=3.10"
+# httpx gives pooled HTTP/2 keep-alive (big latency win vs a TLS handshake per call).
+# It's optional: without it, the client falls back to stdlib urllib.
+dependencies = ["httpx[http2]>=0.27"]
+
+[project.scripts]
+sgrep = "sgrep.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
