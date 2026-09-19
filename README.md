@@ -46,8 +46,22 @@ python -m sgrep scan "which code handles authentication" sample_repo
 | `--window 60 --overlap 10` | chunk sizing (lines) |
 | `--ext .py` | restrict to extensions (repeatable) |
 | `--include / --exclude` | glob filters (repeatable) |
+| `--prefilter auto` | local pre-filter before Jev: `auto`/`semantic` (Model2Vec) · `lexical` · `none` |
+| `--topk 50` | max candidates sent to Jev after the pre-filter (0 = no cap) |
 | `--mock` | offline stand-in for Jev |
 | `--json` | machine-readable output |
+
+## The funnel (big repos)
+
+Judging every chunk means one HTTPS call per chunk. When a repo has more than `--topk`
+chunks, `sgrep` first runs a **local, offline pre-filter** (Model2Vec static embeddings)
+and sends only the **top-k** candidates to Jev — turning "1000 calls" into "50 calls".
+The pre-filter is semantic on purpose: a keyword filter would drop the very code Jev is
+best at finding (e.g. `verify_jwt` for "authentication"). Install with the extra:
+
+```bash
+pip install -e ".[semantic]"   # adds model2vec + numpy; falls back to lexical if absent
+```
 
 ## Config
 

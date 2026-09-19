@@ -35,6 +35,14 @@ def _build_parser():
     p.add_argument("--model", default="jev-latest", help="Jev model id (default jev-latest)")
     p.add_argument("--mock", action="store_true", help="use the offline mock Jev (no API calls)")
     p.add_argument("--no-cache", action="store_true", help="disable the on-disk verdict cache")
+    p.add_argument(
+        "--prefilter", choices=["auto", "semantic", "lexical", "none"], default="auto",
+        help="local pre-filter before Jev when chunks exceed --topk (default auto)",
+    )
+    p.add_argument(
+        "--topk", type=int, default=50,
+        help="max candidates sent to Jev after pre-filter (default 50; 0 = no cap)",
+    )
     p.add_argument("--json", action="store_true", dest="as_json", help="emit JSON instead of a report")
     return parser
 
@@ -66,6 +74,23 @@ def main(argv=None):
         return 1
     chunks = chunk_files(files, root, window=args.window, overlap=args.overlap)
 
+    # Funnel: shrink the candidate set locally before spending Jev calls.
+    candidates = chunks
+    if args.prefilter != "none" and args.topk and len(chunks) > args.topk:
+        from .prefilter import get_prefilter
+
+        pf = get_prefilter(args.prefilter)
+        if pf is not None:
+            tpf = time.perf_counter()
+            scores = pf.rank(args.query, chunks)
+            order = sorted(range(len(chunks)), key=lambda i: scores[i], reverse=True)
+            candidates = [chunks[i] for i in order[: args.topk]]
+            print(
+                f"  prefilter[{pf.name}] {len(chunks)} -> {len(candidates)} candidates "
+                f"in {time.perf_counter() - tpf:.2f}s (local)",
+                file=sys.stderr,
+            )
+
     client, mode = _pick_client(args)
     cache = Cache(Path.cwd() / ".sgrep-cache.json", args.model, args.query, enabled=not args.no_cache)
     print(
@@ -81,7 +106,7 @@ def main(argv=None):
     # HTTP/2 streams don't race a cold socket. Skipped when fully cached, so a
     # repeat query stays instant.
     warm = 0.0
-    misses = sum(1 for c in chunks if not cache.has(c))
+    misses = sum(1 for c in candidates if not cache.has(c))
     if misses and hasattr(client, "warmup"):
         tw = time.perf_counter()
         client.warmup()
@@ -89,7 +114,7 @@ def main(argv=None):
 
     t0 = time.perf_counter()
     verdicts = scan(
-        chunks, client, args.query,
+        candidates, client, args.query,
         concurrency=args.concurrency, progress=progress, cache=cache,
     )
     elapsed = time.perf_counter() - t0
@@ -102,12 +127,13 @@ def main(argv=None):
     except Exception:  # noqa: BLE001
         pass
 
-    judged = len(chunks) - cache.hits
+    judged = len(candidates) - cache.hits
     rps = judged / elapsed if elapsed > 0 and judged else 0.0
     per = elapsed / judged * 1000 if judged else 0.0
     warm_note = f"{warm:.2f}s connect + " if warm else ""
+    filtered_note = f"{len(chunks) - len(candidates)} prefiltered, " if len(candidates) != len(chunks) else ""
     print(
-        f"  {len(chunks)} chunks in {warm_note}{elapsed:.2f}s scan  "
+        f"  {filtered_note}{len(candidates)} candidates in {warm_note}{elapsed:.2f}s scan  "
         f"({cache.hits} cached, {judged} judged; {rps:.1f} req/s, ~{per:.0f} ms/chunk, {transport})",
         file=sys.stderr,
     )

@@ -8,6 +8,11 @@ requires-python = ">=3.10"
 # It's optional: without it, the client falls back to stdlib urllib.
 dependencies = ["httpx[http2]>=0.27"]
 
+[project.optional-dependencies]
+# Local Model2Vec pre-filter (the top-k funnel). Falls back to a zero-dep lexical
+# filter if these aren't installed.
+semantic = ["model2vec>=0.3", "numpy>=1.24"]
+
 [project.scripts]
 sgrep = "sgrep.cli:main"
 

@@ -60,3 +60,20 @@ internal working name; **rename before any public release** to avoid collision.
 ## D11 — Secrets
 `TYPESAFE_API_KEY` lives in `.env` (gitignored). The key is loaded into the environment
 at startup; it is never logged or committed. Override the endpoint via `SGREP_JEV_URL`.
+
+## D12 — Pre-filter funnel: top-k, and it must be semantic
+On a big repo, judging every chunk means one HTTPS call per chunk. The funnel runs a
+local, network-free pre-filter and sends only the top-k candidates to Jev.
+- **top-k, not top-p.** Top-k caps Jev calls deterministically (a cost/latency ceiling).
+  Top-p (nucleus) has no ceiling and needs *calibrated* scores; local embedding scores
+  aren't calibrated. Calibration belongs at the Jev stage, where we already threshold on
+  the `match` probability.
+- **The pre-filter must be semantic, not lexical.** Measured on the sample repo for
+  "authentication": the Model2Vec filter kept all 5 auth files and dropped both decoys;
+  the BM25/lexical filter dropped `users/session.py` (real auth) and kept `navbar` (a
+  decoy), because the query word "authentication" lexically matches none of the code
+  (`authenticate` / `auth` / `session`). A keyword filter removes exactly the chunks Jev
+  is best at. Lexical stays only as a zero-dependency fallback.
+- Pluggable seam `prefilter/` (`semantic` | `lexical` | `none`), engaged only when the
+  chunk count exceeds `--topk`. Semantic uses Model2Vec `potion-base-8M` (same family as
+  sgrep.sh), local/offline after first download.

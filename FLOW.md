@@ -23,6 +23,11 @@ How a `sgrep scan "<query>" <path>` runs, end to end.
    (default 60 lines, 10 overlap), each tagged `file:start-end`. This is the seam
    where graphify / `ast` / tree-sitter plug in later. Local, no network.
 
+2b. **pre-filter (funnel, optional)** — when chunk count exceeds `--topk`, `prefilter/`
+    scores every chunk locally (Model2Vec cosine, or BM25 fallback) and keeps the top-k.
+    Turns "one HTTPS call per chunk" into "one per surviving candidate". Local, no
+    network. Must be semantic — see DECISIONS.md D12.
+
 3. **build questions** — `engine.build_questions(query)` turns the query into ONE
    reusable question set (built once, reused for every chunk):
    ```jsonc
