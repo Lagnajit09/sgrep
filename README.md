@@ -47,9 +47,18 @@ python -m sgrep scan "which code handles authentication" sample_repo
 | `--ext .py` | restrict to extensions (repeatable) |
 | `--include / --exclude` | glob filters (repeatable) |
 | `--prefilter auto` | local pre-filter before Jev: `auto`/`semantic` (Model2Vec) · `lexical` · `none` |
-| `--topk 50` | max candidates sent to Jev after the pre-filter (0 = no cap) |
+| `--topk 50` | max candidates sent to Jev after the pre-filter (0 = no cap / exhaustive) |
+| `--min-k 8` | adaptive floor: always keep at least this many candidates |
+| `--no-adaptive` | hard top-k cut instead of adaptive knee detection |
 | `--mock` | offline stand-in for Jev |
 | `--json` | machine-readable output |
+
+## Structure-aware chunking
+
+Files are chunked at **function / class** granularity, not arbitrary line blocks:
+`.py` via the stdlib `ast`; `.js/.jsx/.ts/.tsx/.java` via tree-sitter (covers React
+components, arrow functions, `export`-wrapped decls); line windows for everything else.
+This gives precise `file:line` hits and better pre-filter recall.
 
 ## The funnel (big repos)
 
@@ -60,7 +69,8 @@ The pre-filter is semantic on purpose: a keyword filter would drop the very code
 best at finding (e.g. `verify_jwt` for "authentication"). Install with the extra:
 
 ```bash
-pip install -e ".[semantic]"   # adds model2vec + numpy; falls back to lexical if absent
+pip install -e ".[all]"   # semantic pre-filter + tree-sitter parsers + rich UI
+# or pick extras: .[semantic]  .[parsers]  .[ui]  (each degrades gracefully if absent)
 ```
 
 ## Config

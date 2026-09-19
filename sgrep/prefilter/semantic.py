@@ -1,3 +1,11 @@
+import os
+
+# Quiet the HuggingFace cache-check chatter (the "Fetching/Download" bars). The
+# model is cached after first download; export HF_HUB_OFFLINE=1 to skip the network
+# cache-check entirely once it's local.
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+
 from .base import PreFilter
 
 DEFAULT_MODEL = "minishlab/potion-base-8M"

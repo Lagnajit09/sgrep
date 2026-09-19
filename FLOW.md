@@ -19,14 +19,16 @@ How a `sgrep scan "<query>" <path>` runs, end to end.
    `node_modules`, `.venv`, …), filters by extension / `--include` / `--exclude`,
    and drops files over ~1 MB. Local, no network.
 
-2. **chunk** — `chunkers/window.py` slices each file into overlapping line windows
-   (default 60 lines, 10 overlap), each tagged `file:start-end`. This is the seam
-   where graphify / `ast` / tree-sitter plug in later. Local, no network.
+2. **chunk** — `chunkers/` slices each file into function / class units: `.py` via the
+   stdlib `ast`, `.js/.jsx/.ts/.tsx/.java` via tree-sitter, and line windows as a
+   universal fallback. Each chunk is tagged `file:start-end`. Local, no network.
+   (graphify / claude-code plug in here later as richer structure providers.)
 
 2b. **pre-filter (funnel, optional)** — when chunk count exceeds `--topk`, `prefilter/`
-    scores every chunk locally (Model2Vec cosine, or BM25 fallback) and keeps the top-k.
-    Turns "one HTTPS call per chunk" into "one per surviving candidate". Local, no
-    network. Must be semantic — see DECISIONS.md D12.
+    scores every chunk locally (Model2Vec cosine, or BM25 fallback) and keeps the
+    **adaptive top-k** (knee between `--min-k` and `--topk`; `prefilter/select.py`).
+    Turns "one HTTPS call per chunk" into "one per surviving candidate", and warns on
+    likely under-recall. Local, no network. Must be semantic — see DECISIONS.md D12/D14.
 
 3. **build questions** — `engine.build_questions(query)` turns the query into ONE
    reusable question set (built once, reused for every chunk):

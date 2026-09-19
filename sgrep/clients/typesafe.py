@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import time
 import urllib.error
 import urllib.request
@@ -34,37 +35,31 @@ class TypeSafeClient(JevClient):
             "Authorization": f"Bearer {self.api_key}",
         }
         self._client = None
-        self._http2 = False
         if httpx is not None:
             limits = httpx.Limits(max_connections=pool, max_keepalive_connections=pool)
-            try:
-                self._client = httpx.Client(
-                    timeout=timeout, limits=limits, http2=True, headers=self._headers
-                )
-                self._http2 = True
-            except Exception:  # http2 needs the h2 package; degrade to HTTP/1.1 keep-alive
-                self._client = httpx.Client(timeout=timeout, limits=limits, headers=self._headers)
+            # HTTP/1.1 (a pool of separate connections) is far more robust with a thread
+            # pool on Windows than HTTP/2's single multiplexed socket, which raced under
+            # load and raised WinError 10035 (WSAEWOULDBLOCK). Measured latency was equal.
+            self._client = httpx.Client(timeout=timeout, limits=limits, headers=self._headers)
 
     @property
     def transport(self):
-        if self._client is None:
-            return "urllib"
-        return "httpx/2" if self._http2 else "httpx/1.1"
+        return "httpx/1.1" if self._client is not None else "urllib"
 
     def judge(self, state, questions):
         payload = {"model": self.model, "state": state, "questions": questions}
         if self._client is None:
             return self._normalize(self._urllib_post(payload))
 
-        # Retry transient socket/transport errors (e.g. WinError 10035 when many
-        # threads race a cold HTTP/2 connection) — but never retry HTTP 4xx/5xx.
+        # Retry transient socket/transport errors (e.g. a stray WinError 10035) with
+        # jittered backoff — but never retry HTTP 4xx/5xx.
         last = None
-        for attempt in range(3):
+        for attempt in range(5):
             try:
                 resp = self._client.post(self.url, json=payload)
             except Exception as e:  # noqa: BLE001 -- transport error, retry
                 last = e
-                time.sleep(0.1 * (attempt + 1))
+                time.sleep(0.2 * (attempt + 1) + random.random() * 0.2)
                 continue
             if resp.status_code != 200:
                 raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")

@@ -12,6 +12,15 @@ dependencies = ["httpx[http2]>=0.27"]
 # Local Model2Vec pre-filter (the top-k funnel). Falls back to a zero-dep lexical
 # filter if these aren't installed.
 semantic = ["model2vec>=0.3", "numpy>=1.24"]
+# Multi-language AST chunking (JS/TS/TSX/Java). Python uses the stdlib `ast`.
+parsers = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.9"]
+# Nicer terminal output.
+ui = ["rich>=13"]
+all = [
+    "model2vec>=0.3", "numpy>=1.24",
+    "tree-sitter>=0.21", "tree-sitter-language-pack>=0.9",
+    "rich>=13",
+]
 
 [project.scripts]
 sgrep = "sgrep.cli:main"
