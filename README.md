@@ -73,10 +73,26 @@ pip install -e ".[all]"   # semantic pre-filter + tree-sitter parsers + rich UI
 # or pick extras: .[semantic]  .[parsers]  .[ui]  (each degrades gracefully if absent)
 ```
 
-## Config
+## Providers
 
-`sgrep` loads `TYPESAFE_API_KEY` from a local `.env` (gitignored). Point at a
-gateway with the same `{model, state, questions}` shape via `SGREP_JEV_URL`.
+`sgrep` reads keys from a local `.env` (gitignored). Choose with `--provider`
+(`auto` | `vercel` | `typesafe` | `mock`):
+
+1. **TypeSafe direct** (`TYPESAFE_API_KEY`) — the default (`auto`). Fast (~2.6s for 50
+   chunks). Override the endpoint with `SGREP_JEV_URL`.
+2. **Vercel AI Gateway** (`VERCEL_AI_GATEWAY_API_KEY`) — opt-in via `--provider vercel`.
+   Jev is free here, but the **free tier is heavily rate-limited** (even a 2-chunk scan
+   429s out), so it's only practical with higher Vercel limits. 429s are retried with
+   `Retry-After` backoff.
+3. **Offline mock** (`--mock`).
+
+## Ignoring files & caches
+
+- **`.sgrepignore`** — gitignore-style patterns, loaded from the scan root and your
+  cwd (so it doubles as a global ignore). Common build/vendor dirs and
+  minified/generated files (very long lines) are skipped automatically.
+- **Caches** (gitignored, disable with `--no-cache`): `.sgrep-chunkcache.json` skips
+  re-parsing unchanged files; `.sgrep-cache.json` skips re-judging unchanged chunks.
 
 ## Roadmap
 

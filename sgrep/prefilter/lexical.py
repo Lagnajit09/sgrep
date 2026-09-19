@@ -2,7 +2,7 @@ import math
 import re
 from collections import Counter
 
-from .base import PreFilter
+from .base import TEXT_CAP, PreFilter
 
 _TOK = re.compile(r"[A-Za-z_][A-Za-z0-9_]+")
 
@@ -22,7 +22,7 @@ class LexicalPreFilter(PreFilter):
     name = "lexical"
 
     def rank(self, query, chunks):
-        docs = [_tokens(c.text) for c in chunks]
+        docs = [_tokens(c.text[:TEXT_CAP]) for c in chunks]
         n = len(docs)
         if n == 0:
             return []

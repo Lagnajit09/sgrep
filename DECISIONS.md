@@ -87,6 +87,12 @@ local, network-free pre-filter and sends only the top-k candidates to Jev.
 - Pluggable seam `prefilter/` (`auto`=hybrid | `hybrid` | `semantic` | `lexical` | `none`),
   engaged only when chunk count exceeds `--topk`. Model2Vec `potion-base-8M`
   (local/offline after first download) + zero-dep BM25.
+- **Pre-filter caps each chunk to the first 2000 chars (`TEXT_CAP`).** Signatures and
+  identifiers live at the top, so ranking barely changes, but pure-Python BM25 was
+  tokenizing 23k-char average chunks (some files are minified/generated). Capping cut the
+  hybrid pre-filter from ~5.2s to ~1.6s on a 2929-chunk repo with recall intact (the
+  `p2pTransaction` controllers stayed at #19/#38). Jev itself still sees more (its own
+  6000-char cap in `engine.py`).
 
 ## D13 — Structure-aware chunking (multi-language)
 Window chunks dilute signal and give imprecise locations. We now chunk at function /
@@ -127,4 +133,40 @@ larger `--topk`, or scoping the path.
 ## D15 — Rich UI, optional
 Results render via `rich` (score+bar, colored, ellipsized) when installed, with an ANSI
 plain-text fallback so the tool still works stdlib-only. Non-terminal output is widened
-to 120 cols so piped/CI output stays readable.
+to 120 cols so piped/CI output stays readable. Slow phases (parsing, pre-filtering,
+connecting, warming up) show a `rich` spinner in a real terminal (a plain dim line when
+piped).
+
+## D16 — Providers: TypeSafe direct is the default; Vercel is opt-in
+Two providers behind a shared pooled-HTTP/1.1 base (`clients/http_base.py`); they differ
+only in URL, headers, and the yes/no wire type (`boolean` on Vercel, `noul` direct —
+translated per request). `--provider auto|vercel|typesafe|mock`.
+
+**`auto` prefers TypeSafe direct.** We tried Vercel AI Gateway as primary (Jev is free
+there through 2026-09-25) but its **free tier is too rate-limited for sgrep's per-chunk
+fan-out** — measured: after adding a card, a 4-chunk scan took 61s with 3/4 chunks 429ing
+out, and even a **2-chunk** scan failed. Auth works; throughput doesn't. So Vercel is
+opt-in via `--provider vercel` (worthwhile only with higher Vercel limits). TypeSafe
+direct does the same scans in ~2.6s.
+
+Robustness added along the way: `_post` retries 429/5xx honoring `Retry-After` (up to
+90s); `VercelJevClient` caps concurrency (2) and its health-check treats 429 as
+"reachable, throttled" (only 401/403 trigger fallback). The HTTP/1.1 switch also made the
+old connection-warmup unnecessary, so it was removed (saves a request per scan). Keys:
+`VERCEL_AI_GATEWAY_API_KEY`, `TYPESAFE_API_KEY` (both in `.env`).
+
+## D17 — Latency: prune, skip, cache
+Cold scans on a real monorepo went ~9s → ~2.6s (cached query) / ~4.9s (fresh, the rest is
+Jev network time). Levers:
+- **os.walk with in-place dir pruning** (`discover.py`) — never descends into
+  node_modules/.git/etc. `rglob` was listing 100k+ files before filtering.
+- **`.sgrepignore`** (gitignore-style, loaded from scan root + cwd) + expanded default
+  ignore dirs (generated, __generated__, .turbo, dist, …).
+- **Auto-skip minified/generated files** (a line > 5000 chars, or binary). This alone cut
+  swiftpay from 2929 → 404 chunks and the hybrid pre-filter from 5.2s → 0.04s.
+- **Per-file chunk cache** (`chunkers/cache.py`, `.sgrep-chunkcache.json`) keyed by
+  (mtime_ns, size) — unchanged files skip the tree-sitter parse on re-runs.
+- **HF_HUB_OFFLINE** auto-set when the Model2Vec model is already cached (skips a network
+  cache-check on load).
+Remaining per-process floor (~2s): Model2Vec load, the Vercel health-probe, and Python
+startup — a daemon/server mode would amortize these.

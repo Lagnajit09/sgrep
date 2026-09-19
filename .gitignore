@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 .sgrep-cache.json
+.sgrep-chunkcache.json
 
 sample_repo
 .venv

@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import os
 import sys
 import time
@@ -6,16 +7,34 @@ from pathlib import Path
 
 from .cache import Cache
 from .chunkers import chunk_files
+from .chunkers.cache import ChunkCache
 from .clients.mock import MockClient
 from .clients.typesafe import TypeSafeClient
+from .clients.vercel import VercelJevClient
 from .config import load_env
-from .discover import DEFAULT_EXTS, discover_files
+from .discover import DEFAULT_EXTS, discover_files, load_ignore_patterns
 from .engine import scan
 from .render import render
 
 
 def _dim(s):
     return f"\033[2m{s}\033[0m"
+
+
+@contextlib.contextmanager
+def _spinner(text):
+    """Animated spinner on stderr in a real terminal; a plain dim line otherwise."""
+    try:
+        from rich.console import Console
+        console = Console(stderr=True)
+        if console.is_terminal:
+            with console.status(f"[dim]{text}…[/dim]", spinner="dots"):
+                yield
+            return
+    except ImportError:
+        pass
+    print(_dim(f"  {text}…"), file=sys.stderr)
+    yield
 
 
 def _build_parser():
@@ -38,43 +57,70 @@ def _build_parser():
     p.add_argument("--exclude", action="append", help="glob(s) to exclude, repeatable")
     p.add_argument("--model", default="jev-latest", help="Jev model id (default jev-latest)")
     p.add_argument("--mock", action="store_true", help="use the offline mock Jev (no API calls)")
-    p.add_argument("--no-cache", action="store_true", help="disable the on-disk verdict cache")
+    p.add_argument("--provider", choices=["auto", "vercel", "typesafe", "mock"], default="auto",
+                   help="Jev provider (default auto: Vercel AI Gateway, then TypeSafe direct)")
+    p.add_argument("--no-cache", action="store_true", help="disable the on-disk caches")
     p.add_argument(
         "--prefilter", choices=["auto", "hybrid", "semantic", "lexical", "none"], default="auto",
         help="local pre-filter before Jev when chunks exceed --topk (default auto = hybrid)",
     )
-    p.add_argument(
-        "--topk", type=int, default=50,
-        help="max candidates sent to Jev after pre-filter (default 50; 0 = no cap / exhaustive)",
-    )
+    p.add_argument("--topk", type=int, default=50,
+                   help="max candidates sent to Jev after pre-filter (default 50; 0 = exhaustive)")
     p.add_argument("--min-k", type=int, default=8, help="adaptive floor: always keep >= this many (default 8)")
-    p.add_argument("--no-adaptive", action="store_true", help="hard top-k cut instead of adaptive knee detection")
+    p.add_argument("--no-adaptive", action="store_true", help="hard top-k cut instead of adaptive knee")
     p.add_argument("--json", action="store_true", dest="as_json", help="emit JSON instead of a report")
     return parser
 
 
 def _pick_client(args):
-    if args.mock:
-        return MockClient(), "mock (offline)"
-    if os.environ.get("TYPESAFE_API_KEY"):
-        try:
-            return TypeSafeClient(model=args.model, pool=args.concurrency), f"Jev live: {args.model}"
-        except Exception as e:  # noqa: BLE001
-            print(f"  (falling back to mock: {e})", file=sys.stderr)
-    return MockClient(), "mock (offline; no TYPESAFE_API_KEY)"
+    """Return (client, mode, note).
+
+    --provider auto prefers TypeSafe direct: the Vercel free tier is too rate-limited for
+    sgrep's per-chunk fan-out (even a 2-chunk scan 429s out), so it's opt-in via
+    --provider vercel (use it if your Vercel account has higher limits). The non-preferred
+    provider is still tried as a fallback before giving up to mock.
+    """
+    prov = "mock" if args.mock else args.provider
+    if prov == "mock":
+        return MockClient(), "mock (offline)", ""
+    if prov == "auto":
+        prov = "typesafe" if os.environ.get("TYPESAFE_API_KEY") else "vercel"
+
+    note = ""
+    for p in (prov, "typesafe" if prov == "vercel" else "vercel"):  # preferred, then fallback
+        if p == "vercel":
+            vkey = os.environ.get("VERCEL_AI_GATEWAY_API_KEY")
+            if not vkey:
+                continue
+            try:
+                c = VercelJevClient(api_key=vkey, pool=args.concurrency)
+                ok, err = c.healthcheck()
+                if ok:
+                    return c, "Jev · Vercel AI Gateway", note
+                c.close()
+                note = note or _dim(f"  Vercel unavailable ({(err or '')[:70]})")
+            except Exception as e:  # noqa: BLE001
+                note = note or _dim(f"  Vercel init failed ({e})")
+        elif p == "typesafe":
+            if not os.environ.get("TYPESAFE_API_KEY"):
+                continue
+            try:
+                return TypeSafeClient(model=args.model, pool=args.concurrency), "Jev · TypeSafe direct", note
+            except Exception as e:  # noqa: BLE001
+                note = note or _dim(f"  TypeSafe init failed ({e})")
+    return MockClient(), "mock (offline; no working provider)", note
 
 
 def _prefilter(args, chunks):
-    """Return the candidate chunks after the optional local top-k funnel."""
+    """Return (candidates, note, warn) after the optional local top-k funnel."""
     if args.prefilter == "none" or not args.topk or len(chunks) <= args.topk:
-        return chunks
+        return chunks, "", ""
     from .prefilter import get_prefilter
     from .prefilter.select import adaptive_select
 
     pf = get_prefilter(args.prefilter)
     if pf is None:
-        return chunks
-
+        return chunks, "", ""
     t = time.perf_counter()
     scores = pf.rank(args.query, chunks)
     order = sorted(range(len(chunks)), key=lambda i: scores[i], reverse=True)
@@ -83,13 +129,9 @@ def _prefilter(args, chunks):
     else:
         kept, warn, reason = adaptive_select([scores[i] for i in order], args.min_k, args.topk)
     candidates = [chunks[i] for i in order[:kept]]
-    print(
-        _dim(f"  prefilter[{pf.name}]: {len(chunks)} → {len(candidates)} ({time.perf_counter() - t:.2f}s local)"),
-        file=sys.stderr,
-    )
-    if warn:
-        print(f"\033[33m  ⚠ under-recall: {reason} — use --topk 0 for exhaustive\033[0m", file=sys.stderr)
-    return candidates
+    note = _dim(f"  prefilter[{pf.name}]: {len(chunks)} → {len(candidates)} ({time.perf_counter() - t:.2f}s local)")
+    warn_line = f"\033[33m  ⚠ under-recall: {reason} — use --topk 0 for exhaustive\033[0m" if warn else ""
+    return candidates, note, warn_line
 
 
 def main(argv=None):
@@ -102,29 +144,40 @@ def main(argv=None):
         return 2
 
     exts = {e if e.startswith(".") else "." + e for e in (args.ext or [])} or DEFAULT_EXTS
-    files = discover_files(root, exts=exts, include=args.include, exclude=args.exclude)
-    if not files:
-        print("no source files found.", file=sys.stderr)
-        return 1
-    chunks = chunk_files(files, root, window=args.window, overlap=args.overlap)
-    print(_dim(f"  {len(files)} files · {len(chunks)} chunks"), file=sys.stderr)
-    candidates = _prefilter(args, chunks)
+    ignore = load_ignore_patterns(root)
+    chunk_cache = ChunkCache(Path.cwd() / ".sgrep-chunkcache.json", enabled=not args.no_cache)
 
-    client, mode = _pick_client(args)
+    with _spinner("discovering & parsing files"):
+        files = discover_files(root, exts=exts, include=args.include, exclude=args.exclude, ignore_patterns=ignore)
+        if not files:
+            print("no source files found.", file=sys.stderr)
+            return 1
+        chunks = chunk_files(files, root, window=args.window, overlap=args.overlap, cache=chunk_cache)
+        chunk_cache.save()
+    reused = f" · {chunk_cache.reused_files} file(s) cached" if chunk_cache.reused_files else ""
+    print(_dim(f"  {len(files)} files · {len(chunks)} chunks{reused}"), file=sys.stderr)
+
+    with _spinner("pre-filtering"):
+        candidates, pf_note, pf_warn = _prefilter(args, chunks)
+    if pf_note:
+        print(pf_note, file=sys.stderr)
+    if pf_warn:
+        print(pf_warn, file=sys.stderr)
+
     cache = Cache(Path.cwd() / ".sgrep-cache.json", args.model, args.query, enabled=not args.no_cache)
+
+    with _spinner("connecting to Jev"):
+        client, mode, client_note = _pick_client(args)
+    if client_note:
+        print(client_note, file=sys.stderr)
+    conc = min(args.concurrency, getattr(client, "max_concurrency", args.concurrency))
 
     def progress(done, total):
         if total and (done % 10 == 0 or done == total):
             print(f"\r{_dim(f'  judged {done}/{total}')}   ", end="", file=sys.stderr, flush=True)
 
-    warm = 0.0
-    if sum(1 for c in candidates if not cache.has(c)) and hasattr(client, "warmup"):
-        tw = time.perf_counter()
-        client.warmup()
-        warm = time.perf_counter() - tw
-
     t0 = time.perf_counter()
-    verdicts = scan(candidates, client, args.query, concurrency=args.concurrency, progress=progress, cache=cache)
+    verdicts = scan(candidates, client, args.query, concurrency=conc, progress=progress, cache=cache)
     elapsed = time.perf_counter() - t0
     print("", file=sys.stderr)
 
@@ -138,7 +191,7 @@ def main(argv=None):
     judged = len(candidates) - cache.hits
     rps = judged / elapsed if elapsed > 0 and judged else 0.0
     print(
-        _dim(f"  {judged} judged · {cache.hits} cached · {rps:.0f} req/s · {warm + elapsed:.2f}s · {transport}"),
+        _dim(f"  {judged} judged · {cache.hits} cached · {rps:.0f} req/s · {elapsed:.2f}s · {transport}"),
         file=sys.stderr,
     )
 

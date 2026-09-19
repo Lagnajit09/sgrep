@@ -1,0 +1,16 @@
+# sgrep ignore file — gitignore-style patterns (one per line).
+# Matched files are skipped before chunking. Loaded from the scan root AND the
+# current directory, so this file (in your working dir) acts as a global ignore.
+#
+# Note: common build/vendor dirs (node_modules, dist, build, .next, target,
+# generated, __generated__, coverage, .venv, …) are ALREADY skipped by default,
+# and minified/generated files (very long lines) are auto-detected and skipped.
+# Add anything extra below.
+
+*.min.js
+*.min.css
+*.bundle.js
+*.map
+*.generated.*
+*.pb.go
+*_pb2.py
