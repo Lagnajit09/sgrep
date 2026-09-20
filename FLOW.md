@@ -3,19 +3,29 @@
 How a `sgrep scan "<query>" <path>` runs, end to end.
 
 ```mermaid
-flowchart TD
-    A["sgrep scan(query, path)"]:::io --> S1["1 · discover<br/>discover.py — os.walk + prune ignored dirs,<br/>.sgrepignore, skip minified/generated"]:::local
-    S1 --> S2["2 · chunk<br/>ast (py) · tree-sitter (js/ts/tsx/java) · window fallback"]:::local
-    KC[("chunk cache<br/>.sgrep-chunkcache.json")]:::cache -. reuse unchanged files .-> S2
-    S2 --> D{"chunks &gt; --topk ?"}:::decide
-    D -->|no| Q3
-    D -->|yes, big repo| S2b["2b · pre-filter funnel<br/>hybrid Model2Vec + BM25 → RRF<br/>→ adaptive top-k (min-k..topk)"]:::local
-    S2b --> Q3["3 · build questions (once)<br/>relevance (score) + match (noul)"]:::local
-    Q3 --> S4["4 · fan-out<br/>engine.scan — ThreadPoolExecutor,<br/>1 call / uncached chunk · pooled HTTP/1.1"]:::remote
-    VC[("verdict cache<br/>.sgrep-cache.json")]:::cache -. serve already-judged .-> S4
-    S4 --> JEV{{"Jev decides — provider = --provider auto<br/>default: TypeSafe /v1/systemone (noul)<br/>opt-in: Vercel /v4/ai/evaluation-model (boolean)"}}:::remote
-    JEV --> S5["5 · rank<br/>0.6·match + 0.4·score · threshold · --top"]:::local
-    S5 --> S6["6 · render<br/>rich table / --json"]:::io
+flowchart TB
+    subgraph L1 [" 1–2 · find + slice "]
+      direction LR
+      A["scan(query, path)"]:::io --> S1["1 · discover<br/>prune · .sgrepignore · skip minified"]:::local --> S2["2 · chunk<br/>ast · tree-sitter · window"]:::local
+    end
+    subgraph L2 [" 2b · candidate selection "]
+      direction LR
+      D{"chunks &gt; --topk ?"}:::decide -->|"yes · big repo"| PF["hybrid pre-filter<br/>Model2Vec + BM25 → RRF → top-k"]:::local --> CAND["candidates"]:::local
+      D -->|no| CAND
+    end
+    subgraph L3 [" 3–4 · ask Jev "]
+      direction LR
+      Q3["3 · build questions<br/>score + noul (once)"]:::local --> S4["4 · fan-out<br/>ThreadPool · HTTP/1.1 · 429 retry"]:::remote --> JEV{{"Jev · --provider auto<br/>TypeSafe (noul) / Vercel (boolean)"}}:::remote
+    end
+    subgraph L4 [" 5–6 · output "]
+      direction LR
+      S5["5 · rank<br/>0.6·match + 0.4·score · --top"]:::local --> S6["6 · render<br/>rich / --json"]:::io
+    end
+    S2 --> D
+    CAND --> Q3
+    JEV --> S5
+    KC[("chunk cache")]:::cache -. reuse .-> S2
+    VC[("verdict cache")]:::cache -. serve .-> S4
 
     classDef local fill:#e8f5e9,stroke:#43a047,color:#1b5e20;
     classDef remote fill:#e3f2fd,stroke:#1e88e5,color:#0d47a1;

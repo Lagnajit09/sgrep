@@ -36,19 +36,24 @@ publish with `twine upload dist/*`.
 ## How it works
 
 ```mermaid
-flowchart TD
-    Q["query + path"]:::io --> D["discover files<br/>os.walk · prune node_modules/.git<br/>· skip minified & generated"]:::local
-    D --> C["chunk into functions / classes<br/>Python: ast · JS/TS/Java: tree-sitter<br/>· fallback: line windows"]:::local
-    K1[("chunk cache")]:::cache -. reuse unchanged files .-> C
-    C --> DEC{"chunks &gt; --topk ?"}:::decide
-    DEC -->|no| CAND["candidates"]:::local
-    DEC -->|yes, big repo| PF["hybrid pre-filter — local, offline<br/>Model2Vec + BM25 → RRF<br/>→ adaptive top-k"]:::local
-    PF --> CAND
-    CAND --> FO["fan out — one typed question set per chunk<br/>parallel · pooled HTTP/1.1"]:::remote
-    K2[("verdict cache")]:::cache -. serve already-judged chunks .-> FO
-    FO --> JEV{{"Jev decides<br/>TypeSafe direct / Vercel<br/>choice · score · noul"}}:::remote
-    JEV --> RANK["rank by match × score<br/>· threshold · calibrated confidence"]:::local
-    RANK --> OUT["ranked hits<br/>file:line + preview"]:::io
+flowchart TB
+    subgraph P [" find + slice "]
+      direction LR
+      Q["query + path"]:::io --> D["discover<br/>prune · skip minified"]:::local --> C["chunk<br/>ast / tree-sitter / window"]:::local
+    end
+    subgraph SEL [" candidate selection "]
+      direction LR
+      DEC{"chunks &gt; --topk ?"}:::decide -->|"yes · big repo"| PF["hybrid pre-filter — local, offline<br/>Model2Vec + BM25 → RRF → top-k"]:::local --> CAND["candidates"]:::local
+      DEC -->|no| CAND
+    end
+    subgraph J [" decide + rank "]
+      direction LR
+      FO["fan out — 1 call / chunk<br/>parallel · HTTP/1.1"]:::remote --> JEV{{"Jev decides<br/>TypeSafe / Vercel"}}:::remote --> RANK["rank<br/>match × score"]:::local --> OUT["ranked hits<br/>file:line + preview"]:::io
+    end
+    C --> DEC
+    CAND --> FO
+    K1[("chunk cache")]:::cache -. reuse .-> C
+    K2[("verdict cache")]:::cache -. serve .-> FO
 
     classDef local fill:#e8f5e9,stroke:#43a047,color:#1b5e20;
     classDef remote fill:#e3f2fd,stroke:#1e88e5,color:#0d47a1;
