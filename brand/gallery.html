@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sgrep — logo</title>
+<style>
+  :root { --ink:#0F1419; --muted:#64748B; --line:#E2E8F0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         color:var(--ink); background:#F8FAFC; padding:40px 24px 64px; }
+  h1 { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:14px; margin:0 0 32px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; max-width:1080px; }
+  .card { border:1px solid var(--line); border-radius:16px; overflow:hidden; background:#fff; }
+  .card h2 { font-size:13px; font-weight:600; margin:0; padding:12px 16px; border-bottom:1px solid var(--line);
+             color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .panes { display:grid; grid-template-columns:1fr 1fr; }
+  .pane { display:flex; align-items:center; justify-content:center; gap:18px; padding:28px 16px; min-height:120px; }
+  .light { background:#fff; }
+  .dark  { background:#0F1419; }
+  .sizes { display:flex; align-items:center; gap:16px; }
+  .caption { color:var(--muted); font-size:12px; padding:10px 16px 16px; }
+  code { font-family: ui-monospace, Consolas, monospace; background:#F1F5F9; padding:1px 6px; border-radius:6px; font-size:12px; }
+</style>
+</head>
+<body>
+  <h1>sgrep — logo</h1>
+  <p class="sub">Magnifier + black-glass terminal + <code>&gt;_</code> prompt. Ring gradient = the green→blue pipeline (local → Jev); amber cursor = the match.</p>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <linearGradient id="gL" x1="8" y1="8" x2="50" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#22C55E"/><stop offset="1" stop-color="#0EA5E9"/></linearGradient>
+    <linearGradient id="gD" x1="8" y1="8" x2="50" y2="50" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#22C55E"/><stop offset="1" stop-color="#38BDF8"/></linearGradient>
+  </defs></svg>
+
+  <div class="grid">
+
+    <div class="card" style="grid-column:1 / -1;">
+      <h2>Primary lockup</h2>
+      <div class="panes">
+        <div class="pane light">
+          <svg width="252" height="76" viewBox="0 0 210 64" fill="none">
+            <g transform="translate(2,4) scale(0.875)">
+              <line x1="41" y1="41" x2="52" y2="52" stroke="url(#gL)" stroke-width="6.5" stroke-linecap="round"/>
+              <circle cx="27" cy="27" r="19" fill="#0F1419"/><circle cx="27" cy="27" r="19" fill="none" stroke="url(#gL)" stroke-width="4"/>
+              <path d="M20 21 L27 27 L20 33" fill="none" stroke="#22C55E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="#F59E0B"/>
+            </g>
+            <text x="70" y="42" font-family="ui-monospace, 'Cascadia Code', Consolas, monospace" font-size="34" font-weight="700" letter-spacing="-1" fill="#0F1419">sgrep</text>
+          </svg>
+        </div>
+        <div class="pane dark">
+          <svg width="252" height="76" viewBox="0 0 210 64" fill="none">
+            <g transform="translate(2,4) scale(0.875)">
+              <line x1="41" y1="41" x2="52" y2="52" stroke="url(#gD)" stroke-width="6.5" stroke-linecap="round"/>
+              <circle cx="27" cy="27" r="19" fill="#0B0F14"/><circle cx="27" cy="27" r="19" fill="none" stroke="url(#gD)" stroke-width="4"/>
+              <path d="M20 21 L27 27 L20 33" fill="none" stroke="#22C55E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="#FBBF24"/>
+            </g>
+            <text x="70" y="42" font-family="ui-monospace, 'Cascadia Code', Consolas, monospace" font-size="34" font-weight="700" letter-spacing="-1" fill="#F8FAFC">sgrep</text>
+          </svg>
+        </div>
+      </div>
+      <p class="caption"><code>sgrep-logo.svg</code> (light) · <code>sgrep-logo-dark.svg</code> (dark)</p>
+    </div>
+
+    <div class="card">
+      <h2>Icon · at real sizes</h2>
+      <div class="panes">
+        <div class="pane light">
+          <div class="sizes">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><line x1="41" y1="41" x2="52" y2="52" stroke="url(#gL)" stroke-width="6.5" stroke-linecap="round"/><circle cx="27" cy="27" r="19" fill="#0F1419"/><circle cx="27" cy="27" r="19" fill="none" stroke="url(#gL)" stroke-width="4"/><path d="M20 21 L27 27 L20 33" fill="none" stroke="#22C55E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="#F59E0B"/></svg>
+            <svg width="32" height="32" viewBox="0 0 64 64" fill="none"><line x1="41" y1="41" x2="52" y2="52" stroke="url(#gL)" stroke-width="6.5" stroke-linecap="round"/><circle cx="27" cy="27" r="19" fill="#0F1419"/><circle cx="27" cy="27" r="19" fill="none" stroke="url(#gL)" stroke-width="4"/><path d="M20 21 L27 27 L20 33" fill="none" stroke="#22C55E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="#F59E0B"/></svg>
+            <svg width="16" height="16" viewBox="0 0 64 64" fill="none"><line x1="41" y1="41" x2="52" y2="52" stroke="url(#gL)" stroke-width="6.5" stroke-linecap="round"/><circle cx="27" cy="27" r="19" fill="#0F1419"/><circle cx="27" cy="27" r="19" fill="none" stroke="url(#gL)" stroke-width="4"/><path d="M20 21 L27 27 L20 33" fill="none" stroke="#22C55E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="#F59E0B"/></svg>
+          </div>
+        </div>
+        <div class="pane dark">
+          <div class="sizes">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><line x1="41" y1="41" x2="52" y2="52" stroke="url(#gD)" stroke-width="6.5" stroke-linecap="round"/><circle cx="27" cy="27" r="19" fill="#0B0F14"/><circle cx="27" cy="27" r="19" fill="none" stroke="url(#gD)" stroke-width="4"/><path d="M20 21 L27 27 L20 33" fill="none" stroke="#22C55E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="#FBBF24"/></svg>
+            <svg width="32" height="32" viewBox="0 0 64 64" fill="none"><line x1="41" y1="41" x2="52" y2="52" stroke="url(#gD)" stroke-width="6.5" stroke-linecap="round"/><circle cx="27" cy="27" r="19" fill="#0B0F14"/><circle cx="27" cy="27" r="19" fill="none" stroke="url(#gD)" stroke-width="4"/><path d="M20 21 L27 27 L20 33" fill="none" stroke="#22C55E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="#FBBF24"/></svg>
+            <svg width="16" height="16" viewBox="0 0 64 64" fill="none"><line x1="41" y1="41" x2="52" y2="52" stroke="url(#gD)" stroke-width="6.5" stroke-linecap="round"/><circle cx="27" cy="27" r="19" fill="#0B0F14"/><circle cx="27" cy="27" r="19" fill="none" stroke="url(#gD)" stroke-width="4"/><path d="M20 21 L27 27 L20 33" fill="none" stroke="#22C55E" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="#FBBF24"/></svg>
+          </div>
+        </div>
+      </div>
+      <p class="caption">64 · 32 · 16&nbsp;px — <code>sgrep-icon.svg</code></p>
+    </div>
+
+    <div class="card">
+      <h2>Monochrome · one color</h2>
+      <div class="panes">
+        <div class="pane light" style="color:#0F1419">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><g stroke="currentColor" fill="none"><line x1="41" y1="41" x2="52" y2="52" stroke-width="6.5" stroke-linecap="round"/><circle cx="27" cy="27" r="19" stroke-width="4"/><path d="M20 21 L27 27 L20 33" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></g><rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="currentColor"/></svg>
+        </div>
+        <div class="pane dark" style="color:#F8FAFC">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><g stroke="currentColor" fill="none"><line x1="41" y1="41" x2="52" y2="52" stroke-width="6.5" stroke-linecap="round"/><circle cx="27" cy="27" r="19" stroke-width="4"/><path d="M20 21 L27 27 L20 33" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></g><rect x="30" y="30.4" width="10" height="3.4" rx="1.7" fill="currentColor"/></svg>
+        </div>
+      </div>
+      <p class="caption">Uses <code>currentColor</code> for print / single-color contexts — <code>sgrep-icon-mono.svg</code></p>
+    </div>
+
+  </div>
+</body>
+</html>
