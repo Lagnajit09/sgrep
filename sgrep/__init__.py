@@ -6,4 +6,4 @@ no external tools. Structure providers (graphify / tree-sitter / claude-code) pl
 in later behind the chunker seam to unlock `trace` and `impact`.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

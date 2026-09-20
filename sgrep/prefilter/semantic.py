@@ -31,10 +31,24 @@ class SemanticPreFilter(PreFilter):
         self.model = StaticModel.from_pretrained(model_name)
         self.name = f"semantic:{model_name.split('/')[-1]}"
 
-    def rank(self, query, chunks):
+    def _chunk_matrix(self, chunks):
         np = self._np
         emb = np.asarray(self.model.encode([c.text[:TEXT_CAP] for c in chunks]), dtype=np.float32)
-        q = np.asarray(self.model.encode([query])[0], dtype=np.float32)
         emb /= np.linalg.norm(emb, axis=1, keepdims=True) + 1e-8
+        return emb
+
+    def rank(self, query, chunks):
+        np = self._np
+        emb = self._chunk_matrix(chunks)
+        q = np.asarray(self.model.encode([query])[0], dtype=np.float32)
         q /= np.linalg.norm(q) + 1e-8
         return (emb @ q).tolist()
+
+    def rank_many(self, queries, chunks):
+        # Embed the chunks ONCE (the expensive part), then score every query
+        # against that matrix — the key batch-mode speedup.
+        np = self._np
+        emb = self._chunk_matrix(chunks)
+        qs = np.asarray(self.model.encode(list(queries)), dtype=np.float32)
+        qs /= np.linalg.norm(qs, axis=1, keepdims=True) + 1e-8
+        return (emb @ qs.T).T.tolist()

@@ -100,4 +100,9 @@ flowchart TB
 - Levers: os.walk dir-pruning, `.sgrepignore` + minified-skip (2929 → 404 chunks), the
   hybrid pre-filter funnel, per-file chunk cache + verdict cache, pooled HTTP/1.1,
   `HF_HUB_OFFLINE`, and a 2000-char pre-filter text cap.
-- Remaining ~2s floor: Model2Vec load + Python startup — a daemon mode would amortize it.
+- **Tracing a flow (multiple queries):** `sgrep scan Q -q Q2 -q Q3` (max 3) shares one
+  discovery + parse + embedding pass and one bounded fan-out pool across all queries — ~2×
+  vs running them separately. See DECISIONS.md D19.
+- **Warm daemon** (`sgrep serve` + `--daemon`) keeps the process + Model2Vec model
+  resident, removing the ~2s floor (Model2Vec load + Python startup). Ladder for a 3-query
+  batch: cold 7.9s → warm daemon 5.3s → cached (verdict hits) 1.1s.

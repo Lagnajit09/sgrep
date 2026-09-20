@@ -94,6 +94,8 @@ python -m sgrep scan "which code handles authentication" sample_repo
 | `--topk 50`                | max candidates sent to Jev after the pre-filter (0 = no cap / exhaustive)       |
 | `--min-k 8`                | adaptive floor: always keep at least this many candidates                       |
 | `--no-adaptive`            | hard top-k cut instead of adaptive knee detection                               |
+| `-q, --query`              | add another query (repeatable, **max 3**); shares one startup + model load       |
+| `--daemon`                 | use a warm `sgrep serve` daemon if running (JSON; falls back to in-process)      |
 | `--mock`                   | offline stand-in for Jev                                                        |
 | `--json`                   | machine-readable output                                                         |
 
@@ -118,6 +120,37 @@ pip install -e ".[all]"
 # or pick extras: .[semantic]  .[parsers]  .[ui]  (each degrades gracefully if absent)
 ```
 
+## Going faster: batch queries & the warm daemon
+
+Tracing a flow (e.g. "how does auth work?") usually takes a few related queries. Two
+levers make that cheap — measured on Autosage's `autobot` (175 chunks):
+
+**Batch mode** — pass up to **3** queries in one run with `-q`. Discovery, parsing, and
+the Model2Vec embeddings are computed **once** and reused for every query, and all the
+Jev calls share a single bounded pool (so concurrency never exceeds `--concurrency`,
+staying rate-limit-safe):
+
+```bash
+sgrep scan "how are requests authenticated" ./autobot \
+  -q "where are JWT tokens verified" \
+  -q "service-to-service auth between backend services" --json
+```
+
+3 queries as separate cold runs ≈ **15.1s** → one batch run ≈ **7.3s** (2.1×). The cap is
+3 on purpose: a flow needs a few *broad* queries, not many narrow ones.
+
+**Warm daemon** — keep the process and the embedding model resident so each scan skips
+the ~1–2s Python-startup + model-load floor:
+
+```bash
+sgrep serve            # start once (localhost only, token-authed); Ctrl-C to stop
+sgrep scan "..." ./autobot --json --daemon      # ~1.8× faster per call
+```
+
+`--daemon` is fail-safe: if no daemon is running (or anything errors) it silently falls
+back to an in-process scan. It serves `--json`; the rich report runs in-process. Batch +
+daemon compose — 3 queries in one warm call ≈ **5.5s** (2.7× vs separate cold runs).
+
 ## Providers
 
 `sgrep` reads keys from a local `.env` (gitignored). Choose with `--provider`
@@ -138,6 +171,14 @@ pip install -e ".[all]"
   minified/generated files (very long lines) are skipped automatically.
 - **Caches** (gitignored, disable with `--no-cache`): `.sgrep-chunkcache.json` skips
   re-parsing unchanged files; `.sgrep-cache.json` skips re-judging unchanged chunks.
+
+## Benchmarks
+
+On a Claude agent tracing real flows through a distributed app, using sgrep (batch +
+warm daemon) to locate code instead of manual grep-and-read cut **total tokens ~40%** and
+**code read into context ~66%** at equal answer quality, and — with batch + daemon — was
+faster on wall-clock too. Full methodology, per-domain numbers, and caveats in
+[BENCHMARK.md](BENCHMARK.md).
 
 ## Roadmap
 

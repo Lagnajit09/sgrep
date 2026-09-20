@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import json
 import os
 import sys
 import time
@@ -13,8 +14,8 @@ from .clients.typesafe import TypeSafeClient
 from .clients.vercel import VercelJevClient
 from .config import load_env
 from .discover import DEFAULT_EXTS, discover_files, load_ignore_patterns
-from .engine import scan
-from .render import render
+from .engine import scan_many
+from .render import render_many
 
 
 def _dim(s):
@@ -45,8 +46,11 @@ def _build_parser():
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("scan", help="Semantic scan of a codebase for a natural-language query.")
-    p.add_argument("query", help="e.g. \"which code handles authentication\"")
+    p.add_argument("query", nargs="?", help="e.g. \"which code handles authentication\"")
     p.add_argument("path", nargs="?", default=".", help="root to scan (default: .)")
+    p.add_argument("-q", "--query", dest="extra_queries", action="append", metavar="QUERY",
+                   help="additional query, repeatable (max 3 total). Batch mode shares one "
+                        "startup + one model load + one parse across all queries.")
     p.add_argument("--threshold", type=float, default=0.6, help="min match probability (default 0.6)")
     p.add_argument("--top", type=int, default=20, help="max hits to show (default 20)")
     p.add_argument("--window", type=int, default=60, help="fallback chunk size in lines (default 60)")
@@ -69,6 +73,14 @@ def _build_parser():
     p.add_argument("--min-k", type=int, default=8, help="adaptive floor: always keep >= this many (default 8)")
     p.add_argument("--no-adaptive", action="store_true", help="hard top-k cut instead of adaptive knee")
     p.add_argument("--json", action="store_true", dest="as_json", help="emit JSON instead of a report")
+    p.add_argument("--daemon", action="store_true",
+                   help="use a warm `sgrep serve` daemon if running (skips startup/model-load; "
+                        "JSON output; silently falls back to in-process if unavailable)")
+
+    sv = sub.add_parser("serve", help="Run a warm background daemon so repeated --daemon scans "
+                                      "skip the ~1-2s startup + model-load each time.")
+    sv.add_argument("--host", default="127.0.0.1", help="bind host (default 127.0.0.1, localhost only)")
+    sv.add_argument("--port", type=int, default=8765, help="bind port (default 8765)")
     return parser
 
 
@@ -111,37 +123,132 @@ def _pick_client(args):
     return MockClient(), "mock (offline; no working provider)", note
 
 
-def _prefilter(args, chunks):
-    """Return (candidates, note, warn) after the optional local top-k funnel."""
+MAX_QUERIES = 3
+
+
+def _collect_queries(args):
+    """Merge the positional query and any -q/--query into an ordered, de-duped list.
+
+    Capped at MAX_QUERIES: tracing a flow wants a few *broad* queries, not many
+    narrow ones, and a hard cap keeps the batch fan-out from stressing rate limits.
+    Returns (queries, error_message)."""
+    raw = []
+    if args.query:
+        raw.append(args.query)
+    if args.extra_queries:
+        raw.extend(args.extra_queries)
+    seen, queries = set(), []
+    for q in raw:
+        q = q.strip()
+        if q and q not in seen:
+            seen.add(q)
+            queries.append(q)
+    if not queries:
+        return [], "provide a query (positional) and/or one or more -q/--query"
+    if len(queries) > MAX_QUERIES:
+        return [], (f"at most {MAX_QUERIES} queries per run (got {len(queries)}); "
+                    "trace a flow with a few broad queries, not many narrow ones")
+    return queries, ""
+
+
+def _prefilter_many(args, queries, chunks):
+    """Local top-k funnel for a batch of queries. Chunk-side work (embeddings, BM25
+    stats) runs ONCE via rank_many; each query gets its own adaptive candidate set.
+
+    Returns (candidates_per_query, note, warns_per_query)."""
+    empty_warns = ["" for _ in queries]
     if args.prefilter == "none" or not args.topk or len(chunks) <= args.topk:
-        return chunks, "", ""
+        return [chunks for _ in queries], "", empty_warns
     from .prefilter import get_prefilter
     from .prefilter.select import adaptive_select
 
     pf = get_prefilter(args.prefilter)
     if pf is None:
-        return chunks, "", ""
+        return [chunks for _ in queries], "", empty_warns
     t = time.perf_counter()
-    scores = pf.rank(args.query, chunks)
-    order = sorted(range(len(chunks)), key=lambda i: scores[i], reverse=True)
-    if args.no_adaptive:
-        kept, warn, reason = min(args.topk, len(chunks)), False, ""
+    score_lists = pf.rank_many(queries, chunks)
+    per_query, warns = [], []
+    for scores in score_lists:
+        order = sorted(range(len(chunks)), key=lambda i: scores[i], reverse=True)
+        if args.no_adaptive:
+            kept, warn, reason = min(args.topk, len(chunks)), False, ""
+        else:
+            kept, warn, reason = adaptive_select([scores[i] for i in order], args.min_k, args.topk)
+        per_query.append([chunks[i] for i in order[:kept]])
+        warns.append(f"\033[33m  ⚠ under-recall: {reason} — use --topk 0 for exhaustive\033[0m" if warn else "")
+    total = sum(len(c) for c in per_query)
+    span = f"{len(chunks)} → {total}" + (f" across {len(queries)} queries" if len(queries) > 1 else "")
+    note = _dim(f"  prefilter[{pf.name}]: {span} ({time.perf_counter() - t:.2f}s local)")
+    return per_query, note, warns
+
+
+def _force_utf8_output():
+    """Windows pipes/redirects default to cp1252, which can't encode the score-bar
+    glyphs (█ ░ ·) — encoding then crashes with UnicodeEncodeError. Reconfigure the
+    streams to UTF-8 so any output path (rich, plain, --json, spinner) is safe."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
+def _print_daemon_json(res, queries):
+    """Print a daemon result matching the in-process --json shapes exactly."""
+    if len(queries) == 1 and res.get("results"):
+        out = dict(res["results"][0])
+        out["elapsed_seconds"] = res.get("elapsed_seconds")
+        print(json.dumps(out, indent=2))
     else:
-        kept, warn, reason = adaptive_select([scores[i] for i in order], args.min_k, args.topk)
-    candidates = [chunks[i] for i in order[:kept]]
-    note = _dim(f"  prefilter[{pf.name}]: {len(chunks)} → {len(candidates)} ({time.perf_counter() - t:.2f}s local)")
-    warn_line = f"\033[33m  ⚠ under-recall: {reason} — use --topk 0 for exhaustive\033[0m" if warn else ""
-    return candidates, note, warn_line
+        print(json.dumps({"queries": res.get("queries", queries),
+                          "elapsed_seconds": res.get("elapsed_seconds"),
+                          "results": res.get("results", [])}, indent=2))
+
+
+def _daemon_payload(args, queries, root):
+    return {
+        "queries": queries, "path": str(root), "cwd": str(Path.cwd()),
+        "threshold": args.threshold, "top": args.top, "window": args.window,
+        "overlap": args.overlap, "concurrency": args.concurrency, "ext": args.ext,
+        "include": args.include, "exclude": args.exclude, "model": args.model,
+        "mock": args.mock, "provider": args.provider, "no_cache": args.no_cache,
+        "prefilter": args.prefilter, "topk": args.topk, "min_k": args.min_k,
+        "no_adaptive": args.no_adaptive,
+    }
 
 
 def main(argv=None):
+    _force_utf8_output()
     args = _build_parser().parse_args(argv)
+
+    if args.cmd == "serve":
+        from .daemon import serve
+        serve(host=args.host, port=args.port)
+        return 0
+
     load_env(Path.cwd())
+
+    queries, qerr = _collect_queries(args)
+    if qerr:
+        print(f"sgrep: {qerr}", file=sys.stderr)
+        return 2
 
     root = Path(args.path).resolve()
     if not root.exists():
         print(f"path not found: {root}", file=sys.stderr)
         return 2
+
+    if args.daemon:
+        if not args.as_json:
+            print(_dim("  (--daemon serves JSON; running in-process for the rich report)"), file=sys.stderr)
+        else:
+            from .daemon import daemon_scan
+            with _spinner("querying warm daemon"):
+                res = daemon_scan(_daemon_payload(args, queries, root))
+            if res is not None:
+                _print_daemon_json(res, queries)
+                return 0
+            print(_dim("  (daemon unavailable; running in-process)"), file=sys.stderr)
 
     exts = {e if e.startswith(".") else "." + e for e in (args.ext or [])} or DEFAULT_EXTS
     ignore = load_ignore_patterns(root)
@@ -155,16 +262,19 @@ def main(argv=None):
         chunks = chunk_files(files, root, window=args.window, overlap=args.overlap, cache=chunk_cache)
         chunk_cache.save()
     reused = f" · {chunk_cache.reused_files} file(s) cached" if chunk_cache.reused_files else ""
+    if len(queries) > 1:
+        print(_dim(f"  batch: {len(queries)} queries · shared parse + model load"), file=sys.stderr)
     print(_dim(f"  {len(files)} files · {len(chunks)} chunks{reused}"), file=sys.stderr)
 
     with _spinner("pre-filtering"):
-        candidates, pf_note, pf_warn = _prefilter(args, chunks)
+        candidates_per_query, pf_note, pf_warns = _prefilter_many(args, queries, chunks)
     if pf_note:
         print(pf_note, file=sys.stderr)
-    if pf_warn:
-        print(pf_warn, file=sys.stderr)
+    for warn in pf_warns:
+        if warn:
+            print(warn, file=sys.stderr)
 
-    cache = Cache(Path.cwd() / ".sgrep-cache.json", args.model, args.query, enabled=not args.no_cache)
+    cache = Cache(Path.cwd() / ".sgrep-cache.json", args.model, enabled=not args.no_cache)
 
     with _spinner("connecting to Jev"):
         client, mode, client_note = _pick_client(args)
@@ -176,8 +286,10 @@ def main(argv=None):
         if total and (done % 10 == 0 or done == total):
             print(f"\r{_dim(f'  judged {done}/{total}')}   ", end="", file=sys.stderr, flush=True)
 
+    jobs = list(zip(queries, candidates_per_query))
+    total_candidates = sum(len(c) for c in candidates_per_query)
     t0 = time.perf_counter()
-    verdicts = scan(candidates, client, args.query, concurrency=conc, progress=progress, cache=cache)
+    verdict_lists = scan_many(jobs, client, concurrency=conc, progress=progress, cache=cache)
     elapsed = time.perf_counter() - t0
     print("", file=sys.stderr)
 
@@ -188,15 +300,15 @@ def main(argv=None):
     except Exception:  # noqa: BLE001
         pass
 
-    judged = len(candidates) - cache.hits
+    judged = total_candidates - cache.hits
     rps = judged / elapsed if elapsed > 0 and judged else 0.0
     print(
         _dim(f"  {judged} judged · {cache.hits} cached · {rps:.0f} req/s · {elapsed:.2f}s · {transport}"),
         file=sys.stderr,
     )
 
-    render(verdicts, args.query, threshold=args.threshold, top=args.top,
-           as_json=args.as_json, mode=mode, elapsed=elapsed)
+    render_many(verdict_lists, queries, threshold=args.threshold, top=args.top,
+                as_json=args.as_json, mode=mode, elapsed=elapsed)
     return 0
 
 

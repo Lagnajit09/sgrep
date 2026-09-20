@@ -180,3 +180,35 @@ model2vec, numpy, tree-sitter, tree-sitter-language-pack) ships by default so
 absent. Distribution name is `sgrep-jev`; the command is `sgrep`. MIT licensed. Note:
 two unrelated `sgrep` tools exist (XiaoConstantine, henrikalbihn) — rename the command
 before any public/PyPI release to avoid the collision.
+
+## D19 — Latency: batch multi-query + a warm daemon (0.2.0)
+A benchmark of a Claude agent tracing a flow found sgrep won on tokens (~−45%) but *lost*
+on wall-clock — the agent made 7–10 separate `sgrep` invocations, each paying Python
+startup + Model2Vec load + a network round-trip. Fixing the invocation model beats
+micro-optimizing a single scan:
+- **Batch multi-query** (`-q`, hard cap **3**): discovery, parsing, and chunk embeddings
+  are computed once and reused per query (new `PreFilter.rank_many`; semantic embeds the
+  chunk matrix once and scores each query against it). All queries fan out through a
+  **single** `ThreadPoolExecutor` of `--concurrency` workers (`engine.scan_many`), so peak
+  in-flight Jev requests stay bounded regardless of query count — overlap without raising
+  the rate. Cap is 3: a flow needs a few broad queries, not many narrow ones, and it keeps
+  the fan-out rate-safe. Measured ~2.1–2.4× vs the same queries as separate runs.
+- **Warm daemon** (`sgrep serve` + `--daemon`): a localhost-only, token-authed HTTP server
+  (state in `~/.sgrep/daemon.json`) that keeps the process + model resident, amortizing the
+  ~1–2s floor D17 flagged. The client is **fail-safe** — unreachable/errored daemon falls
+  back to in-process, so `--daemon` can never break a scan, only speed it up. Serves
+  `--json`; the rich report runs in-process. Measured ~1.8× per call; combined with the
+  verdict cache the ladder is cold 7.9s → warm 5.3s → cached 1.1s.
+- Enabler: the verdict `Cache` now takes the query per call (not at construction) so one
+  cache/scan serves a batch; `render_many` renders per-query while keeping single-query
+  JSON byte-identical for back-compat.
+Net (Autosage re-test): the wall-clock sign flipped from slower to faster, token savings
+held (~−40%). See BENCHMARK.md.
+
+## D20 — Windows: force UTF-8 output (0.2.0 bug fix)
+On Windows, piped/redirected stdout defaults to cp1252, which can't encode the score-bar
+glyphs (`█ ░ ·`) — so `sgrep … > file`, `| tee`, or an agent capturing output crashed with
+`UnicodeEncodeError` (the old `try/except ImportError` didn't catch it). Fix: reconfigure
+stdout/stderr to UTF-8 at startup (covers rich, plain, `--json`, and the spinner) and pass
+`legacy_windows=False` to the Rich console when output isn't a terminal (skips the win32
+console writer). Agents use `--json` anyway, but redirect-to-file is a first-class path.

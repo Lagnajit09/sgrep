@@ -16,3 +16,12 @@ class PreFilter:
 
     def rank(self, query, chunks):
         raise NotImplementedError
+
+    def rank_many(self, queries, chunks):
+        """Score `chunks` for each query, returning one score-list per query.
+
+        Default re-ranks per query; subclasses override to compute the (expensive)
+        chunk-side work — embeddings, BM25 doc stats — ONCE and reuse it for every
+        query. That's the whole point of batch mode.
+        """
+        return [self.rank(q, chunks) for q in queries]

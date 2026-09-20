@@ -39,27 +39,57 @@ def _bar(v, width=10):
 _LOC_W = 40
 
 
+def _result_dict(verdicts, query, threshold, top, elapsed):
+    ranked = sorted(verdicts, key=lambda v: v.rank_key, reverse=True)
+    hits = [v for v in ranked if not v.error and v.match >= threshold]
+    return {
+        "query": query, "threshold": threshold,
+        "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
+        "chunks_scanned": len(verdicts),
+        "hits": [{"file": v.chunk.file, "start_line": v.chunk.start_line,
+                  "end_line": v.chunk.end_line, "match": round(v.match, 3),
+                  "score": round(v.score, 3), "confidence": v.confidence}
+                 for v in hits[:top]],
+    }
+
+
 def render(verdicts, query, threshold=0.6, top=20, as_json=False, mode="", elapsed=None):
+    if as_json:
+        print(json.dumps(_result_dict(verdicts, query, threshold, top, elapsed), indent=2))
+        return
+
     ranked = sorted(verdicts, key=lambda v: v.rank_key, reverse=True)
     hits = [v for v in ranked if not v.error and v.match >= threshold]
     errors = [v for v in ranked if v.error]
-
-    if as_json:
-        print(json.dumps({
-            "query": query, "threshold": threshold,
-            "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
-            "chunks_scanned": len(verdicts),
-            "hits": [{"file": v.chunk.file, "start_line": v.chunk.start_line,
-                      "end_line": v.chunk.end_line, "match": round(v.match, 3),
-                      "score": round(v.score, 3), "confidence": v.confidence}
-                     for v in hits[:top]],
-        }, indent=2))
-        return
-
     try:
         _render_rich(hits, errors, verdicts, query, threshold, top, mode, elapsed)
     except ImportError:
         _render_plain(hits, errors, verdicts, query, threshold, top, mode, elapsed)
+
+
+def render_many(results, queries, threshold=0.6, top=20, as_json=False, mode="", elapsed=None):
+    """Render several query result-sets. `results[i]` are the verdicts for `queries[i]`.
+
+    A single query renders exactly like `render()` (same JSON shape too), so batch
+    mode is a superset — multi-query JSON wraps the per-query dicts in `results`.
+    """
+    if len(results) == 1:
+        render(results[0], queries[0], threshold=threshold, top=top,
+               as_json=as_json, mode=mode, elapsed=elapsed)
+        return
+
+    if as_json:
+        print(json.dumps({
+            "queries": list(queries),
+            "elapsed_seconds": round(elapsed, 3) if elapsed is not None else None,
+            "results": [_result_dict(v, q, threshold, top, None)
+                        for v, q in zip(results, queries)],
+        }, indent=2))
+        return
+
+    for verdicts, query in zip(results, queries):
+        render(verdicts, query, threshold=threshold, top=top,
+               as_json=False, mode=mode, elapsed=None)
 
 
 def _fit_loc(loc):
@@ -71,8 +101,9 @@ def _render_rich(hits, errors, verdicts, query, threshold, top, mode, elapsed):
     from rich.markup import escape
 
     console = Console()
-    if not console.is_terminal:  # piped / captured: give it comfortable, fixed room
-        console = Console(width=118)
+    if not console.is_terminal:  # piped / captured: comfortable fixed room, and
+        # skip the legacy-Windows renderer (it writes via the cp1252 win32 console).
+        console = Console(width=118, legacy_windows=False)
     avail = max(24, console.width - (2 + 2 + 1 + 15 + 2 + _LOC_W + 2))
 
     console.print()

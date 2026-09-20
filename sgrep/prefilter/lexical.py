@@ -21,21 +21,26 @@ class LexicalPreFilter(PreFilter):
 
     name = "lexical"
 
-    def rank(self, query, chunks):
+    def _index(self, chunks):
+        """Tokenize + BM25 doc statistics — the query-independent work."""
         docs = [_tokens(c.text[:TEXT_CAP]) for c in chunks]
         n = len(docs)
-        if n == 0:
-            return []
         df = Counter()
         for d in docs:
             df.update(set(d))
-        avgdl = sum(len(d) for d in docs) / n
+        tfs = [Counter(d) for d in docs]
+        dls = [len(d) for d in docs]
+        avgdl = (sum(dls) / n) if n else 0.0
+        return n, df, tfs, dls, avgdl
+
+    def _score(self, query, index):
+        n, df, tfs, dls, avgdl = index
+        if n == 0:
+            return []
         q = _tokens(query)
         k1, b = 1.5, 0.75
         scores = []
-        for d in docs:
-            tf = Counter(d)
-            dl = len(d)
+        for tf, dl in zip(tfs, dls):
             s = 0.0
             for t in q:
                 if t not in tf:
@@ -44,3 +49,10 @@ class LexicalPreFilter(PreFilter):
                 s += idf * (tf[t] * (k1 + 1)) / (tf[t] + k1 * (1 - b + b * dl / avgdl))
             scores.append(s)
         return scores
+
+    def rank(self, query, chunks):
+        return self._score(query, self._index(chunks))
+
+    def rank_many(self, queries, chunks):
+        index = self._index(chunks)  # built once, reused per query
+        return [self._score(q, index) for q in queries]

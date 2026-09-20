@@ -38,3 +38,9 @@ class HybridPreFilter(PreFilter):
             self.sem.rank(query, chunks),
             self.lex.rank(query, chunks),
         ])
+
+    def rank_many(self, queries, chunks):
+        # Each side does its chunk-work once; fuse per query.
+        sem = self.sem.rank_many(queries, chunks)
+        lex = self.lex.rank_many(queries, chunks)
+        return [reciprocal_rank_fusion([sem[i], lex[i]]) for i in range(len(queries))]
