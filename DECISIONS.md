@@ -170,3 +170,13 @@ Jev network time). Levers:
   cache-check on load).
 Remaining per-process floor (~2s): Model2Vec load, the Vercel health-probe, and Python
 startup — a daemon/server mode would amortize these.
+
+## D18 — Packaging: `sgrep` as an installed command
+`pip install .` / `pipx install .` / `pip install -e .` expose a `sgrep` console command
+(entry point `sgrep.cli:main`) via hatchling; `python -m build` produces a wheel + sdist
+(verified: `sgrep_jev-0.1.0-py3-none-any.whl`). The full dependency set (httpx, rich,
+model2vec, numpy, tree-sitter, tree-sitter-language-pack) ships by default so
+`sgrep scan ...` works out of the box; the code still degrades gracefully if a dep is
+absent. Distribution name is `sgrep-jev`; the command is `sgrep`. MIT licensed. Note:
+two unrelated `sgrep` tools exist (XiaoConstantine, henrikalbihn) — rename the command
+before any public/PyPI release to avoid the collision.

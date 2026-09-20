@@ -4,27 +4,51 @@ version = "0.1.0"
 description = "Semantic grep for codebases, powered by Jev (TypeSafe System One)."
 readme = "README.md"
 requires-python = ">=3.10"
-# httpx gives pooled HTTP/2 keep-alive (big latency win vs a TLS handshake per call).
-# It's optional: without it, the client falls back to stdlib urllib.
-dependencies = ["httpx[http2]>=0.27"]
+license = { text = "MIT" }
+authors = [{ name = "Lm09" }]
+keywords = ["semantic-search", "code-search", "grep", "jev", "typesafe", "ast", "tree-sitter", "rag"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
+]
+
+# Full experience out of the box: pooled HTTP, rich UI, the hybrid pre-filter (Model2Vec),
+# and multi-language chunking (tree-sitter). Each degrades gracefully if removed, but
+# shipping them means `sgrep scan ...` "just works".
+dependencies = [
+    "httpx[http2]>=0.27",
+    "rich>=13",
+    "model2vec>=0.3",
+    "numpy>=1.24",
+    "tree-sitter>=0.21",
+    "tree-sitter-language-pack>=0.9",
+]
 
 [project.optional-dependencies]
-# Local Model2Vec pre-filter (the top-k funnel). Falls back to a zero-dep lexical
-# filter if these aren't installed.
-semantic = ["model2vec>=0.3", "numpy>=1.24"]
-# Multi-language AST chunking (JS/TS/TSX/Java). Python uses the stdlib `ast`.
-parsers = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.9"]
-# Nicer terminal output.
-ui = ["rich>=13"]
-all = [
-    "model2vec>=0.3", "numpy>=1.24",
-    "tree-sitter>=0.21", "tree-sitter-language-pack>=0.9",
-    "rich>=13",
-]
+dev = ["build", "pytest"]
 
 [project.scripts]
 sgrep = "sgrep.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/Lm09/sgrep-jev"
+Repository = "https://github.com/Lm09/sgrep-jev"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sgrep"]
+
+[tool.hatch.build.targets.sdist]
+include = ["sgrep", "README.md", "DECISIONS.md", "FLOW.md", "LICENSE", ".sgrepignore"]

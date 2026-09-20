@@ -8,20 +8,59 @@ sgrep scan "which code handles authentication" ./src
 
 Instead of matching keywords (grep) or building a vector index (embeddings),
 `sgrep` slices your repo into chunks and asks **Jev** (TypeSafe's System One model)
-one cheap typed question per chunk: *"does this match the query?"* — then ranks the
+one cheap typed question per chunk: _"does this match the query?"_ — then ranks the
 answers by calibrated confidence.
 
 Because a Jev call is ~150 tokens, ~100ms, and output is free, scanning a whole
 repo costs pennies — cheap enough to run in CI on every PR.
 
+## Install
+
+```bash
+# global, isolated `sgrep` command (recommended for a CLI):
+pipx install .
+
+# or into the current environment (editable for development):
+pip install -e .
+
+# then, from anywhere:
+sgrep scan "which code handles authentication" ./src
+```
+
+Requires Python 3.10+. First run downloads a tiny (~7 MB) local embedding model for the
+pre-filter. Add your provider key(s) to a `.env` (see **Providers** below).
+
+To build distributables: `python -m build` (produces `dist/*.whl` and `*.tar.gz`);
+publish with `twine upload dist/*`.
+
 ## How it works
 
-```
-walk repo -> chunk locally -> one Jev call per chunk (parallel) -> rank -> report
-   (free)       (free)              (~$0.03 / 5k functions)         (free)
+```mermaid
+flowchart TD
+    Q["query + path"]:::io --> D["discover files<br/>os.walk · prune node_modules/.git<br/>· skip minified & generated"]:::local
+    D --> C["chunk into functions / classes<br/>Python: ast · JS/TS/Java: tree-sitter<br/>· fallback: line windows"]:::local
+    K1[("chunk cache")]:::cache -. reuse unchanged files .-> C
+    C --> DEC{"chunks &gt; --topk ?"}:::decide
+    DEC -->|no| CAND["candidates"]:::local
+    DEC -->|yes, big repo| PF["hybrid pre-filter — local, offline<br/>Model2Vec + BM25 → RRF<br/>→ adaptive top-k"]:::local
+    PF --> CAND
+    CAND --> FO["fan out — one typed question set per chunk<br/>parallel · pooled HTTP/1.1"]:::remote
+    K2[("verdict cache")]:::cache -. serve already-judged chunks .-> FO
+    FO --> JEV{{"Jev decides<br/>TypeSafe direct / Vercel<br/>choice · score · noul"}}:::remote
+    JEV --> RANK["rank by match × score<br/>· threshold · calibrated confidence"]:::local
+    RANK --> OUT["ranked hits<br/>file:line + preview"]:::io
+
+    classDef local fill:#e8f5e9,stroke:#43a047,color:#1b5e20;
+    classDef remote fill:#e3f2fd,stroke:#1e88e5,color:#0d47a1;
+    classDef cache fill:#fff8e1,stroke:#f9a825,color:#5d4037;
+    classDef decide fill:#f3e5f5,stroke:#8e24aa,color:#4a148c;
+    classDef io fill:#eceff1,stroke:#546e7a,color:#263238;
 ```
 
-- **No embeddings, no vector store, no index to keep in sync.**
+> 🟩 local & free · 🟦 Jev API (network) · 🟨 on-disk cache
+
+- **No persistent vector index to build or keep in sync** — the local pre-filter embeds
+  on the fly (only when a repo exceeds `--topk`); Jev makes the actual decision.
 - **Meaning, not keywords:** `verify_jwt()` scores high for "authentication" even
   without the word; a comment that merely mentions a term won't false-positive.
 - **Scattering is irrelevant:** every chunk is judged independently, so matches are
@@ -39,19 +78,19 @@ python -m sgrep scan "which code handles authentication" sample_repo
 
 ## Options
 
-| flag | meaning |
-|------|---------|
-| `--threshold 0.6` | minimum match probability to show |
-| `--top 20` | max hits |
-| `--window 60 --overlap 10` | chunk sizing (lines) |
-| `--ext .py` | restrict to extensions (repeatable) |
-| `--include / --exclude` | glob filters (repeatable) |
-| `--prefilter auto` | local pre-filter before Jev: `auto`/`semantic` (Model2Vec) · `lexical` · `none` |
-| `--topk 50` | max candidates sent to Jev after the pre-filter (0 = no cap / exhaustive) |
-| `--min-k 8` | adaptive floor: always keep at least this many candidates |
-| `--no-adaptive` | hard top-k cut instead of adaptive knee detection |
-| `--mock` | offline stand-in for Jev |
-| `--json` | machine-readable output |
+| flag                       | meaning                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `--threshold 0.6`          | minimum match probability to show                                               |
+| `--top 20`                 | max hits                                                                        |
+| `--window 60 --overlap 10` | chunk sizing (lines)                                                            |
+| `--ext .py`                | restrict to extensions (repeatable)                                             |
+| `--include / --exclude`    | glob filters (repeatable)                                                       |
+| `--prefilter auto`         | local pre-filter before Jev: `auto`/`semantic` (Model2Vec) · `lexical` · `none` |
+| `--topk 50`                | max candidates sent to Jev after the pre-filter (0 = no cap / exhaustive)       |
+| `--min-k 8`                | adaptive floor: always keep at least this many candidates                       |
+| `--no-adaptive`            | hard top-k cut instead of adaptive knee detection                               |
+| `--mock`                   | offline stand-in for Jev                                                        |
+| `--json`                   | machine-readable output                                                         |
 
 ## Structure-aware chunking
 
@@ -69,7 +108,8 @@ The pre-filter is semantic on purpose: a keyword filter would drop the very code
 best at finding (e.g. `verify_jwt` for "authentication"). Install with the extra:
 
 ```bash
-pip install -e ".[all]"   # semantic pre-filter + tree-sitter parsers + rich UI
+pip install -e ".[all]"
+# semantic pre-filter + tree-sitter parsers + rich UI
 # or pick extras: .[semantic]  .[parsers]  .[ui]  (each degrades gracefully if absent)
 ```
 

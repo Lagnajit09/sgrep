@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 .sgrep-cache.json
 .sgrep-chunkcache.json
+dist/
+build/
+*.egg-info/
 
 sample_repo
 .venv
