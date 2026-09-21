@@ -1,6 +1,6 @@
 [project]
 name = "sgrep-jev"
-version = "0.2.0"
+version = "0.2.1"
 description = "Semantic grep for codebases, powered by Jev (TypeSafe System One)."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,8 +40,8 @@ dev = ["build", "pytest"]
 sgrep = "sgrep.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Lm09/sgrep-jev"
-Repository = "https://github.com/Lm09/sgrep-jev"
+Homepage = "https://github.com/Lagnajit09/sgrep"
+Repository = "https://github.com/Lagnajit09/sgrep"
 
 [build-system]
 requires = ["hatchling"]

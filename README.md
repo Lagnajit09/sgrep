@@ -17,21 +17,24 @@ repo costs pennies — cheap enough to run in CI on every PR.
 ## Install
 
 ```bash
-# global, isolated `sgrep` command (recommended for a CLI):
-pipx install .
+# recommended — install straight from GitHub (no PyPI needed); command is `sgrep`:
+pipx install "git+https://github.com/Lagnajit09/sgrep"
 
-# or into the current environment (editable for development):
-pip install -e .
+# pin a released version:
+pipx install "git+https://github.com/Lagnajit09/sgrep@v0.2.0"
+
+# or from a local checkout:
+pipx install .            # global, isolated `sgrep` command
+pip install -e .          # into the current environment (editable, for development)
 
 # then, from anywhere:
 sgrep scan "which code handles authentication" ./src
 ```
 
 Requires Python 3.10+. First run downloads a tiny (~7 MB) local embedding model for the
-pre-filter. Add your provider key(s) to a `.env` (see **Providers** below).
+pre-filter. Set your provider key once (see **Providers** below).
 
-To build distributables: `python -m build` (produces `dist/*.whl` and `*.tar.gz`);
-publish with `twine upload dist/*`.
+To build/publish: `python -m build` → `twine upload dist/*` (or `uv publish`).
 
 ## How it works
 
@@ -112,13 +115,9 @@ Judging every chunk means one HTTPS call per chunk. When a repo has more than `-
 chunks, `sgrep` first runs a **local, offline pre-filter** (Model2Vec static embeddings)
 and sends only the **top-k** candidates to Jev — turning "1000 calls" into "50 calls".
 The pre-filter is semantic on purpose: a keyword filter would drop the very code Jev is
-best at finding (e.g. `verify_jwt` for "authentication"). Install with the extra:
-
-```bash
-pip install -e ".[all]"
-# semantic pre-filter + tree-sitter parsers + rich UI
-# or pick extras: .[semantic]  .[parsers]  .[ui]  (each degrades gracefully if absent)
-```
+best at finding (e.g. `verify_jwt` for "authentication"). The pre-filter model,
+tree-sitter parsers, and rich UI all ship by default (see **Install** above) — each
+degrades gracefully if a dependency is somehow missing.
 
 ## Going faster: batch queries & the warm daemon
 
@@ -151,26 +150,37 @@ sgrep scan "..." ./autobot --json --daemon      # ~1.8× faster per call
 back to an in-process scan. It serves `--json`; the rich report runs in-process. Batch +
 daemon compose — 3 queries in one warm call ≈ **5.5s** (2.7× vs separate cold runs).
 
-## Providers
+## Providers &amp; the API key
 
-`sgrep` reads keys from a local `.env` (gitignored). Choose with `--provider`
-(`auto` | `vercel` | `typesafe` | `mock`):
+Choose the provider with `--provider` (`auto` | `vercel` | `typesafe` | `mock`):
 
 1. **TypeSafe direct** (`TYPESAFE_API_KEY`) — the default (`auto`). Fast (~2.6s for 50
    chunks). Override the endpoint with `SGREP_JEV_URL`.
 2. **Vercel AI Gateway** (`VERCEL_AI_GATEWAY_API_KEY`) — opt-in via `--provider vercel`.
-   Jev is free here, but the **free tier is heavily rate-limited** (even a 2-chunk scan
-   429s out), so it's only practical with higher Vercel limits. 429s are retried with
-   `Retry-After` backoff.
-3. **Offline mock** (`--mock`).
+   Jev is free here, but the **free tier is heavily rate-limited**, so it's only practical
+   with higher Vercel limits. 429s are retried with `Retry-After` backoff.
+3. **Offline mock** (`--mock`) — no key needed.
+
+**Where to put the key** (resolved in this order, first one wins):
+
+1. a real environment variable — `export TYPESAFE_API_KEY=...` (best for CI / installed use);
+2. `./.env` in the directory you run from (project-local);
+3. a **global** `~/.config/sgrep/.env` (`%APPDATA%\sgrep\.env` on Windows) — set it once,
+   use `sgrep` from anywhere.
+
+The scanned repo's own `.env` is **never** read. If you use the daemon, the key must be in
+the daemon process's environment or the global config (it's never sent over the wire).
 
 ## Ignoring files & caches
 
 - **`.sgrepignore`** — gitignore-style patterns, loaded from the scan root and your
-  cwd (so it doubles as a global ignore). Common build/vendor dirs and
-  minified/generated files (very long lines) are skipped automatically.
-- **Caches** (gitignored, disable with `--no-cache`): `.sgrep-chunkcache.json` skips
-  re-parsing unchanged files; `.sgrep-cache.json` skips re-judging unchanged chunks.
+  cwd. Common build/vendor dirs and minified/generated files are skipped automatically.
+- **Caches** live in a **global** per-repo directory — `~/.cache/sgrep/<repo>-<hash>/`
+  (`%LOCALAPPDATA%\sgrep\...` on Windows), keyed by the resolved scan path. So they never
+  pollute the scanned repo or your cwd, and are reused no matter where you invoke sgrep
+  from. `.sgrep-chunkcache.json` skips re-parsing unchanged files; `.sgrep-cache.json`
+  skips re-judging unchanged chunks. Override the base with `SGREP_CACHE_DIR`, or disable
+  with `--no-cache`.
 
 ## Benchmarks
 

@@ -212,3 +212,20 @@ glyphs (`█ ░ ·`) — so `sgrep … > file`, `| tee`, or an agent capturing 
 stdout/stderr to UTF-8 at startup (covers rich, plain, `--json`, and the spinner) and pass
 `legacy_windows=False` to the Rich console when output isn't a terminal (skips the win32
 console writer). Agents use `--json` anyway, but redirect-to-file is a first-class path.
+
+## D21 — Installed-tool paths: global key config + global per-repo cache (0.2.1)
+Once `sgrep` is a real installed command run from anywhere, "read `.env`/write caches in
+cwd" breaks down. Fixed both (`config.py`):
+- **API key** resolves real env var → `./.env` → **global** `~/.config/sgrep/.env`
+  (`%APPDATA%\sgrep\.env` on Windows), first-set-wins via `setdefault`. Native OS env is
+  the primary path for installed/CI use; the global file lets a user set it once. The
+  **scanned repo's `.env` is deliberately not loaded** — it may hold unrelated secrets and
+  loading it would pull them into the process env (a footgun). The daemon needs the key in
+  its own env or the global config (never sent over the wire).
+- **Cache** goes to a **global** dir keyed by the resolved repo root:
+  `~/.cache/sgrep/<name>-<sha1[:12]>/` (`%LOCALAPPDATA%\sgrep\...` on Windows), override
+  base via `SGREP_CACHE_DIR`. Chosen over (a) cwd — different cwds fragment the cache and
+  running inside the target repo pollutes it; and (b) the scanned repo — never write into
+  someone else's tree. Global-by-root gives isolation per repo, reuse regardless of cwd,
+  and zero pollution. Daemon and non-daemon share the same location, so their caches are
+  interchangeable. Platform dirs are computed without adding a `platformdirs` dependency.

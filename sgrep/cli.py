@@ -12,7 +12,7 @@ from .chunkers.cache import ChunkCache
 from .clients.mock import MockClient
 from .clients.typesafe import TypeSafeClient
 from .clients.vercel import VercelJevClient
-from .config import load_env
+from .config import cache_dir_for, load_config
 from .discover import DEFAULT_EXTS, discover_files, load_ignore_patterns
 from .engine import scan_many
 from .render import render_many
@@ -43,6 +43,8 @@ def _build_parser():
         prog="sgrep",
         description="Semantic grep for codebases, powered by Jev (TypeSafe System One).",
     )
+    from . import __version__
+    parser.add_argument("--version", action="version", version=f"sgrep {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("scan", help="Semantic scan of a codebase for a natural-language query.")
@@ -226,7 +228,7 @@ def main(argv=None):
         serve(host=args.host, port=args.port)
         return 0
 
-    load_env(Path.cwd())
+    load_config(Path.cwd())
 
     queries, qerr = _collect_queries(args)
     if qerr:
@@ -252,7 +254,8 @@ def main(argv=None):
 
     exts = {e if e.startswith(".") else "." + e for e in (args.ext or [])} or DEFAULT_EXTS
     ignore = load_ignore_patterns(root)
-    chunk_cache = ChunkCache(Path.cwd() / ".sgrep-chunkcache.json", enabled=not args.no_cache)
+    cachedir = cache_dir_for(root)
+    chunk_cache = ChunkCache(cachedir / ".sgrep-chunkcache.json", enabled=not args.no_cache)
 
     with _spinner("discovering & parsing files"):
         files = discover_files(root, exts=exts, include=args.include, exclude=args.exclude, ignore_patterns=ignore)
@@ -274,7 +277,7 @@ def main(argv=None):
         if warn:
             print(warn, file=sys.stderr)
 
-    cache = Cache(Path.cwd() / ".sgrep-cache.json", args.model, enabled=not args.no_cache)
+    cache = Cache(cachedir / ".sgrep-cache.json", args.model, enabled=not args.no_cache)
 
     with _spinner("connecting to Jev"):
         client, mode, client_note = _pick_client(args)

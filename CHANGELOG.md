@@ -4,6 +4,32 @@ All notable changes to **sgrep** are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] — 2026-09-21
+
+Makes sgrep behave like a properly installed tool (run it from anywhere) and fixes the
+install URL.
+
+### Added
+- **Global API-key config** — set `TYPESAFE_API_KEY` once in `~/.config/sgrep/.env`
+  (`%APPDATA%\sgrep\.env` on Windows) and use sgrep from any directory. Resolution order:
+  real env var → `./.env` → global config. The scanned repo's own `.env` is never read.
+- **Global, per-repo cache** — caches now live in `~/.cache/sgrep/<repo>-<hash>/`
+  (`%LOCALAPPDATA%\sgrep\...` on Windows), keyed by the resolved scan path, so they never
+  pollute the scanned repo or your cwd and are reused regardless of where you invoke sgrep.
+  Override the base with `SGREP_CACHE_DIR`.
+- `sgrep --version`.
+
+### Changed
+- **Caches moved out of the working directory** into the global per-repo location above —
+  running sgrep inside a repo no longer drops `.sgrep-*.json` files in it. (Old cwd cache
+  files, if any, are now unused and can be deleted.)
+
+### Fixed
+- Corrected the install/repo URL in the docs and package metadata to
+  `github.com/Lagnajit09/sgrep` (was a non-existent `Lm09/sgrep-jev`).
+
+[0.2.1]: https://github.com/Lagnajit09/sgrep/releases/tag/v0.2.1
+
 ## [0.2.0] — 2026-09-20
 
 Latency release. Understanding a flow usually takes a few related queries; this makes
@@ -38,7 +64,7 @@ that cheap. Same-quality answers as 0.1.0, but faster and with fewer tokens.
   *slower* (0.1.0, many cold calls) to *faster* with batch + daemon. Latency ladder for a
   3-query batch: cold 7.9s → warm daemon 5.3s → cached 1.1s. See `BENCHMARK.md`.
 
-[0.2.0]: https://github.com/Lm09/sgrep-jev/releases/tag/v0.2.0
+[0.2.0]: https://github.com/Lagnajit09/sgrep/releases/tag/v0.2.0
 
 ## [0.1.0] — 2026-09-20
 
@@ -70,4 +96,4 @@ and ranks the hits by calibrated confidence.
   (every-chunk) scan when completeness matters.
 - A ~2s per-invocation floor from model load, cold connection, and Python startup.
 
-[0.1.0]: https://github.com/Lm09/sgrep-jev/releases/tag/v0.1.0
+[0.1.0]: https://github.com/Lagnajit09/sgrep/releases/tag/v0.1.0

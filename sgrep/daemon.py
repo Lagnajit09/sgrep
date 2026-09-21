@@ -24,7 +24,7 @@ from urllib.error import URLError
 from .cache import Cache
 from .chunkers import chunk_files
 from .chunkers.cache import ChunkCache
-from .config import load_env
+from .config import cache_dir_for, load_config
 from .discover import DEFAULT_EXTS, discover_files, load_ignore_patterns
 from .engine import scan_many
 from .render import _result_dict
@@ -75,7 +75,7 @@ def scan_request(payload):
     if not queries:
         return {"error": "no queries"}
     cwd = payload.get("cwd") or os.getcwd()
-    load_env(Path(cwd))  # pick up TYPESAFE_API_KEY from the caller's .env
+    load_config(Path(cwd))  # OS env > caller's .env > global ~/.config/sgrep/.env
 
     root = Path(payload.get("path") or ".").resolve()
     if not root.exists():
@@ -85,7 +85,7 @@ def scan_request(payload):
     no_cache = bool(opt("no_cache", False))
     exts = {e if e.startswith(".") else "." + e for e in (opt("ext", None) or [])} or DEFAULT_EXTS
     ignore = load_ignore_patterns(root)
-    cache_dir = Path(cwd)
+    cache_dir = cache_dir_for(root)  # global, keyed by repo — same as the non-daemon path
     chunk_cache = ChunkCache(cache_dir / ".sgrep-chunkcache.json", enabled=not no_cache)
     files = discover_files(root, exts=exts, include=opt("include", None),
                            exclude=opt("exclude", None), ignore_patterns=ignore)
@@ -178,6 +178,7 @@ def _write_state(host, port, token):
 
 def serve(host="127.0.0.1", port=DEFAULT_PORT, prefilter="auto"):
     token = secrets.token_hex(16)
+    load_config(Path.cwd())  # so the resident process has the key (OS env / .env / global)
     print(f"sgrep daemon: warming pre-filter model…", file=sys.stderr)
     _warm_prefilter(prefilter)  # pay the model-load cost once, now
     httpd = ThreadingHTTPServer((host, port), _make_handler(token))
