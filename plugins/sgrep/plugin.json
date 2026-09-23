@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "sgrep",
+  "version": "0.3.0",
+  "description": "Semantic code search and call-graph analysis via the sgrep CLI (Jev / TypeSafe System One). Finds code by meaning, traces flows (callers + callees), and computes blast radius. Requires the sgrep CLI installed separately.",
+  "author": {
+    "name": "Lagnajit09",
+    "url": "https://github.com/Lagnajit09"
+  },
+  "homepage": "https://github.com/Lagnajit09/sgrep",
+  "repository": "https://github.com/Lagnajit09/sgrep",
+  "license": "MIT",
+  "keywords": ["semantic-search", "code-search", "call-graph", "trace", "impact", "jev", "grep"]
+}

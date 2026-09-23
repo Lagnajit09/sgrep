@@ -1,0 +1,21 @@
+{
+  "name": "sagex-tools",
+  "owner": {
+    "name": "Lagnajit09",
+    "url": "https://github.com/Lagnajit09"
+  },
+  "metadata": {
+    "description": "SageX developer tools for Claude Code.",
+    "version": "0.3.0"
+  },
+  "plugins": [
+    {
+      "name": "sgrep",
+      "source": "./plugins/sgrep",
+      "description": "Semantic code search + call-graph trace/impact from inside Claude Code, powered by the sgrep CLI (Jev). Requires the sgrep CLI: pipx install \"git+https://github.com/Lagnajit09/sgrep\".",
+      "version": "0.3.0",
+      "category": "search",
+      "keywords": ["semantic-search", "code-search", "call-graph", "jev", "grep"]
+    }
+  ]
+}

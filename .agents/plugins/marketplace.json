@@ -1,0 +1,21 @@
+{
+  "name": "sagex-tools",
+  "interface": {
+    "displayName": "SageX Tools"
+  },
+  "plugins": [
+    {
+      "name": "sgrep",
+      "source": {
+        "source": "local",
+        "path": "./plugins/sgrep"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE",
+        "products": ["CODEX"]
+      },
+      "category": "Coding"
+    }
+  ]
+}

@@ -1140,6 +1140,20 @@
           align-items: start;
         }
       }
+      .agent-terms {
+        display: grid;
+        gap: 14px;
+      }
+      .term .nm {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        color: #8a8a72;
+      }
+      .term .th .copy {
+        margin-left: 10px;
+      }
       .term {
         background: var(--term);
         border: 1px solid #23231a;
@@ -1424,6 +1438,20 @@
               <rect x="2" y="3" width="20" height="18" rx="2" />
             </svg>
             Install
+          </button>
+          <button class="nav-item" data-view="agents">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 3l1.8 4.9 4.9 1.8-4.9 1.8L12 16.4l-1.8-4.9L5.3 9.7l4.9-1.8z" />
+              <path d="M18.6 15l.5 1.6 1.6.5-1.6.5-.5 1.6-.5-1.6-1.6-.5 1.6-.5z" />
+            </svg>
+            Agents
           </button>
           <div class="sb-sec up">Resources</div>
           <a class="nav-item" href="https://github.com/Lagnajit09/sgrep">
@@ -2256,6 +2284,108 @@ sgrep scan "where are JWT tokens verified" ./src'
               </div>
             </div>
           </section>
+
+          <!-- ---------- AGENTS (skill) ---------- -->
+          <section class="view" data-view="agents">
+            <div class="view-pad">
+              <div class="vh">
+                <div class="k">
+                  <span class="i">07</span> — CLAUDE CODE &amp; CODEX
+                </div>
+                <h2>Add it to your coding agent.</h2>
+                <p>
+                  sgrep ships as an <b>agent skill</b>, so Claude Code and Codex
+                  reach for <code>scan</code> / <code>trace</code> /
+                  <code>impact</code> on their own. One <code>SKILL.md</code>,
+                  published straight from the repo as a plugin marketplace — the
+                  agent runs the CLI you installed, the skill just teaches it
+                  <em>when</em>.
+                </p>
+              </div>
+              <div class="inst">
+                <div class="agent-terms">
+                  <div class="term">
+                    <div class="th">
+                      <i style="background: #ff5f57"></i
+                      ><i style="background: #febc2e"></i
+                      ><i style="background: #28c840"></i>
+                      <span class="nm">Claude Code</span>
+                      <button
+                        class="copy"
+                        data-copy="/plugin marketplace add Lagnajit09/sgrep
+/plugin install sgrep@sagex-tools"
+                      >
+                        copy
+                      </button>
+                    </div>
+                    <pre><span class="cm"># add the marketplace, then install the skill</span>
+<span class="pr">›</span> /plugin marketplace add Lagnajit09/sgrep
+<span class="pr">›</span> /plugin install sgrep@sagex-tools
+
+<span class="cm"># Claude now uses sgrep on its own — or call it directly</span>
+<span class="pr">›</span> /sgrep:sgrep</pre>
+                  </div>
+                  <div class="term">
+                    <div class="th">
+                      <i style="background: #ff5f57"></i
+                      ><i style="background: #febc2e"></i
+                      ><i style="background: #28c840"></i>
+                      <span class="nm">Codex</span>
+                      <button
+                        class="copy"
+                        data-copy="codex plugin marketplace add Lagnajit09/sgrep"
+                      >
+                        copy
+                      </button>
+                    </div>
+                    <pre><span class="cm"># same repo, as an Agent Plugins marketplace</span>
+<span class="pr">$</span> codex plugin marketplace add Lagnajit09/sgrep
+
+<span class="cm"># then enable the sgrep plugin; invoke it with $sgrep</span></pre>
+                  </div>
+                </div>
+                <ul class="facts">
+                  <li>
+                    <span class="mk">→</span
+                    ><span
+                      ><b>One skill, both agents.</b> The same
+                      <code>SKILL.md</code> serves Claude Code and Codex through
+                      the open <b>Agent Plugins</b> standard.</span
+                    >
+                  </li>
+                  <li>
+                    <span class="mk">→</span
+                    ><span
+                      ><b>Auto-invoked.</b> The agent reaches for sgrep on
+                      “where/how does X work?” and “what breaks if I change Y?” —
+                      or you call it explicitly.</span
+                    >
+                  </li>
+                  <li>
+                    <span class="mk">→</span
+                    ><span
+                      ><b>Wraps the CLI.</b> Install
+                      <a
+                        data-view="install"
+                        style="color: var(--accent); font-weight: 600"
+                        >sgrep</a
+                      >
+                      and set your key first; the skill runs
+                      <code>scan</code>/<code>trace</code>/<code>impact</code> for
+                      you.</span
+                    >
+                  </li>
+                  <li>
+                    <span class="mk">→</span
+                    ><span
+                      ><b>No registry.</b> Your GitHub repo <em>is</em> the
+                      marketplace — bump the version to ship an update.</span
+                    >
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
         </div>
 
         <!-- ================= UTILITY BAR ================= -->
@@ -2264,6 +2394,7 @@ sgrep scan "where are JWT tokens verified" ./src'
           <a data-view="compare">Compare</a>
           <a data-view="benchmarks">Benchmarks</a>
           <a data-view="install">Install</a>
+          <a data-view="agents">Agents</a>
           <span class="sp"></span>
           <span class="pw">POWERED BY JEV · TYPESAFE SYSTEM ONE</span>
         </div>
@@ -2362,7 +2493,7 @@ sgrep scan "where are JWT tokens verified" ./src'
       });
       // deep-link + initial fill
       var start = location.hash.slice(1);
-      var valid = ["home", "compare", "benchmarks", "install"];
+      var valid = ["home", "compare", "benchmarks", "install", "agents"];
       if (valid.indexOf(start) > -1 && start !== "home") {
         show(start);
       } else {

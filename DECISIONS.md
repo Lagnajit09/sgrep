@@ -249,3 +249,29 @@ seed nodes (precision), graphify's edges expand to the connected flow (structure
   test methods). `--include-tests` / `--relations` / `--max-nodes` override.
 - **Caveat**: quality tracks graph freshness — a stale graph mis-maps moved code (seed shows
   "not in graph"); `--refresh` rebuilds it.
+
+## D23 — Ship as a Claude Code + Codex skill, one artifact, self-hosted marketplace (Phase 4)
+Agents grep-and-read by default; the win from D22/D19 only lands if the agent actually
+*reaches for* `scan`/`trace`/`impact`. Package sgrep as an **agent skill** so Claude Code and
+Codex invoke it on their own — the skill is the brain (when), the CLI stays the hands (how).
+- **One canonical `SKILL.md`, two manifests, one dir**: `plugins/sgrep/` holds the shared
+  `skills/sgrep/SKILL.md` plus *both* wrappers side by side — `.claude-plugin/plugin.json`
+  (Claude Code) and a portable root `plugin.json` (Codex / **Agent Plugins v1.0.0**,
+  `$schema=agent-plugins.org/schemas/1.0.0/plugin.schema.json`). No duplicated skill file, no
+  drift. Each tool reads its own manifest and ignores the other's.
+- **The repo is the store** — no PyPI/registry. Two repo-root marketplaces, both named
+  `sagex-tools` (SageX brand): `.claude-plugin/marketplace.json` and Codex's
+  `.agents/plugins/marketplace.json`. Install = push. Users add
+  `Lagnajit09/sgrep` and get `sgrep@sagex-tools`.
+- **Skill body = a routing rule, not a tutorial**: find/how-does-X-work → `scan`;
+  what-breaks-if-I-change-Y → `trace`/`impact`. `allowed-tools: Bash` so it shells to the
+  CLI without prompts. The CLI is installed separately (`pipx`); the skill never bundles it.
+- **Agent Plugins is a real cross-agent standard** (agent-plugins.org; OpenAI/Google/VS Code),
+  so "one skill, every ecosystem" holds — verified: `claude plugin validate` passes,
+  `--plugin-dir` sideload loads the skill (`sgrep:sgrep`), and `codex plugin marketplace add`
+  (codex-cli 0.122.0) parses our marketplace.
+- **Caveat**: a *managed* Claude Code install can block marketplace-installed plugins by
+  policy (`allowManagedHooksOnly` + allowed-marketplace allowlist → "marketplace-blocked-by-
+  policy"); `--plugin-dir` bypasses it, unmanaged users clear a one-time trust prompt. Codex
+  has no CLI `install` yet (marketplace add only; enable via UI, or drop the skill into
+  `~/.agents/skills/`).

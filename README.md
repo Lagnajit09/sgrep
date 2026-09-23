@@ -220,10 +220,53 @@ warm daemon) to locate code instead of manual grep-and-read cut **total tokens ~
 faster on wall-clock too. Full methodology, per-domain numbers, and caveats in
 [BENCHMARK.md](BENCHMARK.md).
 
+## Use it from Claude Code &amp; Codex (the sgrep skill)
+
+sgrep ships an **agent skill** so coding assistants reach for `scan` / `trace` / `impact`
+on their own — the agent still runs the CLI you installed above; the skill just teaches it
+*when* (find/how-does-X-work → `scan`; what-breaks-if-I-change-Y → `trace`/`impact`). One
+canonical `SKILL.md`
+([plugins/sgrep/skills/sgrep/SKILL.md](plugins/sgrep/skills/sgrep/SKILL.md)) serves both
+agents; the same `plugins/sgrep/` directory carries a Claude Code manifest
+(`.claude-plugin/plugin.json`) and a portable [Agent Plugins](https://agent-plugins.org)
+manifest (`plugin.json`) side by side.
+
+**Claude Code** — install from the plugin marketplace in this repo (one-time trust prompt):
+
+```bash
+/plugin marketplace add Lagnajit09/sgrep
+/plugin install sgrep@sagex-tools
+```
+
+Claude then uses sgrep automatically for "where/how does X work?" and "what breaks if I
+change Y?" questions; you can still invoke it explicitly with `/sgrep:sgrep`.
+
+**Codex CLI** — add the same repo as an [Agent Plugins](https://agent-plugins.org)
+marketplace (declared in [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json)):
+
+```bash
+codex plugin marketplace add Lagnajit09/sgrep
+```
+
+Then enable the `sgrep` plugin from Codex's plugin directory; invoke it explicitly with
+`$sgrep`, or let Codex auto-select it on a matching request. Prefer a no-marketplace setup?
+Drop the skill straight into Codex's personal skills dir instead:
+
+```bash
+git clone https://github.com/Lagnajit09/sgrep ~/.sgrep-src
+cp -r ~/.sgrep-src/plugins/sgrep/skills/sgrep ~/.agents/skills/sgrep   # or symlink it
+```
+
+Both need the `sgrep` CLI on your PATH and a `TYPESAFE_API_KEY` (see **Providers** &amp; the
+API key); `trace`/`impact` also need a graphify graph. The skill wraps the CLI — it doesn't
+install it.
+
 ## Roadmap
 
 - **Phase 1 (now):** standalone semantic `scan` over line-window chunks.
 - **Phase 2:** precise Python function/class chunks via stdlib `ast`.
 - **Phase 3 (done):** graphify structure provider — `sgrep trace` (semantic seeds
   expanded along the call graph) and `sgrep impact` (reverse blast-radius). See above.
-- **Next:** package sgrep as a Claude Code Skill; more structure providers.
+- **Phase 4 (done):** ships as a **Claude Code / Codex skill** so agents call
+  `scan`/`trace`/`impact` automatically (`/plugin install sgrep@sagex-tools`). See above.
+- **Next:** more structure providers; PyPI packaging.
