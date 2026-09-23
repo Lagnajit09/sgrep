@@ -27,12 +27,21 @@ pipx install "git+https://github.com/Lagnajit09/sgrep@v0.2.0"
 pipx install .            # global, isolated `sgrep` command
 pip install -e .          # into the current environment (editable, for development)
 
+# set your Jev key (pick one) — resolved: OS env var > ./.env > ~/.config/sgrep/.env
+export TYPESAFE_API_KEY="sk-..."                    # macOS / Linux (add to ~/.zshrc to persist)
+setx TYPESAFE_API_KEY "sk-..."                      # Windows PowerShell (persists for new sessions)
+echo 'TYPESAFE_API_KEY=sk-...' >> ~/.config/sgrep/.env   # or set once, used from any dir
+
+# optional backup provider — Vercel AI Gateway (auto falls back to it, or --provider vercel)
+export VERCEL_AI_GATEWAY_API_KEY="vck-..."          # same three placements as above
+
 # then, from anywhere:
 sgrep scan "which code handles authentication" ./src
 ```
 
 Requires Python 3.10+. First run downloads a tiny (~7 MB) local embedding model for the
-pre-filter. Set your provider key once (see **Providers** below).
+pre-filter. On Windows the global config lives at `%APPDATA%\sgrep\.env` — see **Providers**
+below for the full resolution order.
 
 To build/publish: `python -m build` → `twine upload dist/*` (or `uv publish`).
 
@@ -158,15 +167,38 @@ Choose the provider with `--provider` (`auto` | `vercel` | `typesafe` | `mock`):
    chunks). Override the endpoint with `SGREP_JEV_URL`.
 2. **Vercel AI Gateway** (`VERCEL_AI_GATEWAY_API_KEY`) — opt-in via `--provider vercel`.
    Jev is free here, but the **free tier is heavily rate-limited**, so it's only practical
-   with higher Vercel limits. 429s are retried with `Retry-After` backoff.
+   with higher Vercel limits. 429s are retried with `Retry-After` backoff. Set it **alongside**
+   `TYPESAFE_API_KEY` as a **backup**: with `--provider auto`, sgrep falls back to Vercel when
+   TypeSafe is unavailable.
 3. **Offline mock** (`--mock`) — no key needed.
 
 **Where to put the key** (resolved in this order, first one wins):
 
-1. a real environment variable — `export TYPESAFE_API_KEY=...` (best for CI / installed use);
+1. a real environment variable — best for CI / installed use;
 2. `./.env` in the directory you run from (project-local);
 3. a **global** `~/.config/sgrep/.env` (`%APPDATA%\sgrep\.env` on Windows) — set it once,
    use `sgrep` from anywhere.
+
+```bash
+# 1 · environment variable — macOS / Linux (add to ~/.zshrc or ~/.bashrc to persist)
+export TYPESAFE_API_KEY="sk-..."
+
+# 1 · environment variable — Windows PowerShell (persists for new sessions)
+setx TYPESAFE_API_KEY "sk-..."
+
+# 2 · project-local file
+echo 'TYPESAFE_API_KEY=sk-...' >> ./.env
+
+# 3 · global config — set once, use sgrep from any directory
+mkdir -p ~/.config/sgrep && echo 'TYPESAFE_API_KEY=sk-...' >> ~/.config/sgrep/.env
+# Windows: add TYPESAFE_API_KEY=sk-... to %APPDATA%\sgrep\.env
+
+# backup provider — Vercel AI Gateway (fallback under --provider auto, or --provider vercel).
+# Same three placements; just swap the variable name:
+export VERCEL_AI_GATEWAY_API_KEY="vck-..."                     # macOS / Linux
+setx VERCEL_AI_GATEWAY_API_KEY "vck-..."                       # Windows PowerShell
+echo 'VERCEL_AI_GATEWAY_API_KEY=vck-...' >> ~/.config/sgrep/.env
+```
 
 The scanned repo's own `.env` is **never** read. If you use the daemon, the key must be in
 the daemon process's environment or the global config (it's never sent over the wire).
@@ -242,14 +274,16 @@ Claude then uses sgrep automatically for "where/how does X work?" and "what brea
 change Y?" questions; you can still invoke it explicitly with `/sgrep:sgrep`.
 
 **Codex CLI** — add the same repo as an [Agent Plugins](https://agent-plugins.org)
-marketplace (declared in [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json)):
+marketplace (declared in [.agents/plugins/marketplace.json](.agents/plugins/marketplace.json)),
+then install the plugin:
 
 ```bash
 codex plugin marketplace add Lagnajit09/sgrep
+codex plugin add sgrep@sagex-tools
 ```
 
-Then enable the `sgrep` plugin from Codex's plugin directory; invoke it explicitly with
-`$sgrep`, or let Codex auto-select it on a matching request. Prefer a no-marketplace setup?
+Invoke it explicitly with `$sgrep`, or let Codex auto-select it on a matching request
+(`codex plugin list --marketplace sagex-tools` shows its status). Prefer no marketplace?
 Drop the skill straight into Codex's personal skills dir instead:
 
 ```bash

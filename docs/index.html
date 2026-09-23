@@ -2220,6 +2220,7 @@
                     <button
                       class="copy cp"
                       data-copy='pipx install "git+https://github.com/Lagnajit09/sgrep@v0.3.0"
+export TYPESAFE_API_KEY="sk-..."   # Windows: setx TYPESAFE_API_KEY "sk-..."
 sgrep scan "where are JWT tokens verified" ./src'
                     >
                       copy
@@ -2230,6 +2231,16 @@ sgrep scan "where are JWT tokens verified" ./src'
 
 <span class="cm"># or into the current environment</span>
 <span class="pr">$</span> pip install -e .
+
+<span class="cm"># set your Jev key — macOS / Linux (add to ~/.zshrc to persist)</span>
+<span class="pr">$</span> export TYPESAFE_API_KEY="sk-..."
+<span class="cm"># …or Windows PowerShell (persists for new sessions)</span>
+<span class="pr">&gt;</span> setx TYPESAFE_API_KEY "sk-..."
+<span class="cm"># …or set once, used from any dir: ~/.config/sgrep/.env  (Windows: %APPDATA%\sgrep\.env)</span>
+<span class="pr">$</span> echo 'TYPESAFE_API_KEY=sk-...' &gt;&gt; ~/.config/sgrep/.env
+
+<span class="cm"># optional backup provider — Vercel AI Gateway (auto falls back to it)</span>
+<span class="pr">$</span> export VERCEL_AI_GATEWAY_API_KEY="vck-..."
 
 <span class="cm"># ask your codebase anything</span>
 <span class="pr">$</span> sgrep scan "where are JWT tokens verified" ./src
@@ -2253,8 +2264,9 @@ sgrep scan "where are JWT tokens verified" ./src'
                     <span class="mk">→</span
                     ><span
                       ><b>Providers.</b> TypeSafe direct (default) or the Vercel
-                      AI Gateway — keys from a gitignored
-                      <code>.env</code>.</span
+                      AI Gateway — the key resolves from an OS env var, a local
+                      <code>.env</code>, then a global
+                      <code>~/.config/sgrep/.env</code>.</span
                     >
                   </li>
                   <li>
@@ -2333,15 +2345,17 @@ sgrep scan "where are JWT tokens verified" ./src'
                       <span class="nm">Codex</span>
                       <button
                         class="copy"
-                        data-copy="codex plugin marketplace add Lagnajit09/sgrep"
+                        data-copy="codex plugin marketplace add Lagnajit09/sgrep
+codex plugin add sgrep@sagex-tools"
                       >
                         copy
                       </button>
                     </div>
-                    <pre><span class="cm"># same repo, as an Agent Plugins marketplace</span>
+                    <pre><span class="cm"># add the Agent Plugins marketplace, then the plugin</span>
 <span class="pr">$</span> codex plugin marketplace add Lagnajit09/sgrep
+<span class="pr">$</span> codex plugin add sgrep@sagex-tools
 
-<span class="cm"># then enable the sgrep plugin; invoke it with $sgrep</span></pre>
+<span class="cm"># invoke the skill with $sgrep</span></pre>
                   </div>
                 </div>
                 <ul class="facts">

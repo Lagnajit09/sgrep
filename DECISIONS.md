@@ -273,5 +273,6 @@ Codex invoke it on their own — the skill is the brain (when), the CLI stays th
 - **Caveat**: a *managed* Claude Code install can block marketplace-installed plugins by
   policy (`allowManagedHooksOnly` + allowed-marketplace allowlist → "marketplace-blocked-by-
   policy"); `--plugin-dir` bypasses it, unmanaged users clear a one-time trust prompt. Codex
-  has no CLI `install` yet (marketplace add only; enable via UI, or drop the skill into
-  `~/.agents/skills/`).
+  install (codex-cli 0.122.0): `codex plugin marketplace add Lagnajit09/sgrep` then
+  `codex plugin add sgrep@sagex-tools` (verified end-to-end from the live GitHub repo), or
+  drop the skill into `~/.agents/skills/`.

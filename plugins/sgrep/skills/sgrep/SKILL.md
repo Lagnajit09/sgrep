@@ -117,5 +117,7 @@ In one benchmark on a distributed app, `impact` answered a blast-radius question
 - **Install the CLI:** `pipx install "git+https://github.com/Lagnajit09/sgrep"` (command is `sgrep`).
 - **API key:** set `TYPESAFE_API_KEY` as a real environment variable, or in a global
   `~/.config/sgrep/.env` (`%APPDATA%\sgrep\.env` on Windows). The scanned repo's own `.env`
-  is never read. Or run offline with `--mock` (no key, stubbed results).
+  is never read. Optionally set `VERCEL_AI_GATEWAY_API_KEY` too as a backup provider (sgrep
+  falls back to it under `--provider auto`, or force it with `--provider vercel`). Or run
+  offline with `--mock` (no key, stubbed results).
 - **Graph for `trace`/`impact`:** build it with `graphify update <repo>` (or pass `--refresh`).
