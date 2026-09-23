@@ -92,6 +92,47 @@ same-`file:line` answer.
 The daemon removes the ~2.5s fixed floor; the verdict cache removes the Jev fan-out on
 re-scans.
 
+## Round 3 — graphify (`trace`/`impact`), by question type
+
+Phase 3 added `sgrep trace`/`impact` (Jev seeds + a graphify call graph). The value depends
+entirely on the *kind* of question. Same target (Autosage), same-model agents, same deliverable.
+
+**Describe-the-flow question** ("explain the script-execution flow end to end") — a linear
+narrative:
+
+| | Manual | Raw sgrep | sgrep+graphify |
+|---|--:|--:|--:|
+| Total tokens | 64,505 | 34,746 | 44,548 |
+| Wall-clock | 109s | 105s | 175s |
+
+Here graphify **lost** to raw sgrep: the key functions are semantically findable, so the
+call-graph edges are extra tokens to read, and `trace` wasn't daemon-accelerated yet
+(4 trace calls × model-load → slow).
+
+**Connection / blast-radius question** ("map everything affected if we change how Django
+dispatches to the exec-worker"):
+
+| | Manual | Raw sgrep (+grep) | sgrep+graphify |
+|---|--:|--:|--:|
+| Total tokens | 75,460 | 55,954 | **27,061** |
+| Lines read | 3,246 | 1,948 | **181** |
+| Files read | 8 | 8 | **4** |
+| Wall-clock | 146s | 247s | **94s** |
+| Locators | grep-heavy | 2 scan **+ 8 grep** | 1 impact + 1 trace + 1 scan |
+| Completeness (fns) | 18 | 19 | 13 |
+
+Here graphify **won decisively** on cost (−52% vs raw sgrep, −64% vs manual) and speed
+(fastest) — the graph hands over the connections instead of making the agent read files to
+reconstruct them. The raw-sgrep agent abandoned scan-only and fell back to grep 8× (semantic
+search can't traverse a call graph), becoming the slowest arm. **Caveat:** graphify
+under-covered (13 vs 18–19) — a single seed (`stream_execution`) missed the parallel *inline*
+workflow dispatch (`tasks.py:794`) and its callers; seeding all entry points closes the gap.
+
+**Takeaway:** use `trace`/`impact` for **connection/dependency/blast-radius** questions
+(where they're 2–3× cheaper and faster), not for "find/describe" (where plain `scan` already
+wins). `trace`/`impact` now route their seed scan through the warm daemon, removing the
+per-call model-load tax.
+
 ## Threats to validity
 
 - **n = 1 per cell.** One run per domain per arm; agent exploration is stochastic. Treat as directional, not ±1%.

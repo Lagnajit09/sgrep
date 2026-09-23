@@ -4,6 +4,35 @@ All notable changes to **sgrep** are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-09-23
+
+Structure awareness: sgrep can now follow the **call graph**, not just find code. Adds
+`trace` and `impact` on top of a [graphify](https://github.com/) graph.
+
+### Added
+- **`sgrep trace`** — trace a flow: Jev picks semantic seed nodes, then the graphify call
+  graph (`graphify-out/graph.json`) expands them along callers + callees. Reads the graph
+  graphify builds; `--refresh` rebuilds it via `graphify update`. Follows `calls,method`
+  by default (`--relations`, `--hops`, `--max-nodes`); excludes tests (`--include-tests`).
+- **`sgrep impact`** — reverse blast radius: everything that (transitively) depends on the
+  code matching the query, grouped by file with hop distance.
+- Both support `--json`. Hub-node, test-file, and built-in guards keep output focused.
+- `trace`/`impact` route their seed scan through a warm `sgrep serve` daemon when one is
+  running (fail-safe to in-process), removing the per-call ~2s model-load (trace 1.9s→1.0s).
+- **`--symbol`** on `trace`/`impact` — seed from an exact graph node (a name like
+  `build_worker_payload` or `file:line` like `executor.py:15`) with no Jev call: instant,
+  precise, and lets you pin each entry point for full blast-radius coverage.
+- `impact` seeds 5 nodes by default (was 3) for better blast-radius completeness.
+- Language built-ins (`str`, `Exception`, `.filter()`, …) are excluded from the graph —
+  graphify indexes them as call nodes and they connect everything.
+
+### Notes
+- `trace`/`impact` need a graphify graph (`graphify-out/graph.json`). Their value is on
+  **connection / dependency / blast-radius** questions (2–3× cheaper than manual or plain
+  `scan` there); for "find/describe", plain `scan` is cheaper. See `BENCHMARK.md`.
+
+[0.3.0]: https://github.com/Lagnajit09/sgrep/releases/tag/v0.3.0
+
 ## [0.2.1] — 2026-09-21
 
 Makes sgrep behave like a properly installed tool (run it from anywhere) and fixes the

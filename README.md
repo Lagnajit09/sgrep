@@ -182,6 +182,36 @@ the daemon process's environment or the global config (it's never sent over the 
   skips re-judging unchanged chunks. Override the base with `SGREP_CACHE_DIR`, or disable
   with `--no-cache`.
 
+## Trace & impact (graphify)
+
+`scan` finds *where* code is; **`trace`** and **`impact`** show *how it connects*, by
+pairing Jev's semantic seeds with a [graphify](https://github.com/) call graph
+(`graphify-out/graph.json`). sgrep reads the graph graphify already builds — run
+`graphify update <repo>` to (re)build it, or pass `--refresh`.
+
+```bash
+# the flow: seeds (Jev) expanded along callers + callees
+sgrep trace "how is a user script dispatched to the worker" ./server
+
+# blast radius: everything that (transitively) depends on the matched code
+sgrep impact "the standard JSON API response helper" ./server
+
+# pin an exact node instead of a Jev query (offline, precise) — name or file:line
+sgrep impact --symbol build_worker_payload ./server
+sgrep trace  --symbol executor.py:15 ./server
+```
+
+`trace` walks `calls,method` (add `uses` etc. with `--relations`); `impact` walks callers
+upstream. Both drop test files (`--include-tests` to keep them) and language built-ins, and
+guard against graphify's generic-name hubs, so the output stays the real flow, not a
+hairball. `--symbol` seeds from an exact graph node (no Jev call); `--json` for pipelines;
+`--hops`, `--top` (seeds), `--max-nodes` to tune.
+
+**When to use:** `trace`/`impact` shine on **connection / dependency / blast-radius**
+questions — measured **2–3× fewer tokens and faster** than manual or plain `scan` there
+(BENCHMARK.md). For "find / describe this" questions, plain `scan` is already cheaper — the
+call graph is extra to read.
+
 ## Benchmarks
 
 On a Claude agent tracing real flows through a distributed app, using sgrep (batch +
@@ -194,6 +224,6 @@ faster on wall-clock too. Full methodology, per-domain numbers, and caveats in
 
 - **Phase 1 (now):** standalone semantic `scan` over line-window chunks.
 - **Phase 2:** precise Python function/class chunks via stdlib `ast`.
-- **Phase 3:** pluggable structure providers (graphify / tree-sitter / claude-code)
-  behind the chunker seam — unlocks `sgrep trace` (semantic taint across the call
-  graph) and `sgrep impact` (blast-radius).
+- **Phase 3 (done):** graphify structure provider — `sgrep trace` (semantic seeds
+  expanded along the call graph) and `sgrep impact` (reverse blast-radius). See above.
+- **Next:** package sgrep as a Claude Code Skill; more structure providers.

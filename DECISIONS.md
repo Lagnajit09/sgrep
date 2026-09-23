@@ -229,3 +229,23 @@ cwd" breaks down. Fixed both (`config.py`):
   someone else's tree. Global-by-root gives isolation per repo, reuse regardless of cwd,
   and zero pollution. Daemon and non-daemon share the same location, so their caches are
   interchangeable. Platform dirs are computed without adding a `platformdirs` dependency.
+
+## D22 — graphify structure provider: `trace` + `impact` (Phase 3)
+sgrep is precise about *where* code is but blind to *how it connects*; graphify has the
+call graph but retrieves by keyword/graph (imprecise seeds). Combining them: Jev picks the
+seed nodes (precision), graphify's edges expand to the connected flow (structure).
+- **Read, don't own** (`graph.py`): sgrep reads the artifact graphify already builds,
+  `graphify-out/graph.json` (NetworkX node-link; nodes have `source_file`+`source_location`
+  `L<n>`, edges have `relation` calls/method/uses/... + `confidence_score`). `find_graph`
+  walks up from the scan path; `--refresh` shells out to `graphify update`. Decoupled.
+- **Seed mapping**: run the normal scan, take top hits ≥ threshold, map each `file:line` to
+  the graph node whose def line falls in the chunk (`node_for`, absolute-path keyed). Only
+  `code` nodes are seed-mappable — graphify's `rationale` (LLM-note) nodes are skipped.
+- **`trace`** = both directions along `calls,method` (default; `uses` opt-in — it hairballs
+  via shared utils). **`impact`** = reverse-only callers, deeper (3 hops), blast radius.
+- **Noise guards** (from real output): per-node fan-out cap; don't recurse *through* hub
+  nodes (generic `.get()`/`api_response()` that inferred edges link everywhere) — show them
+  as leaves; exclude test files by default (graphify wrongly links real fns to same-named
+  test methods). `--include-tests` / `--relations` / `--max-nodes` override.
+- **Caveat**: quality tracks graph freshness — a stale graph mis-maps moved code (seed shows
+  "not in graph"); `--refresh` rebuilds it.

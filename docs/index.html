@@ -1041,6 +1041,9 @@
       .ladder .bar-row .who {
         flex: 0 0 150px;
       }
+      .conn .bar-row .who {
+        flex: 0 0 78px;
+      }
       @media (max-width: 560px) {
         .ladder .bar-row .who {
           flex: 0 0 100px;
@@ -1479,7 +1482,7 @@
         <div class="sb-foot">
           <div class="sb-user">
             <img class="sb-ava" src="sgrep-icon.svg" alt="sgrep" />
-            <div class="nm">sgrep <small>v0.2.0 · powered by Jev</small></div>
+            <div class="nm">sgrep <small>v0.3.0 · powered by Jev</small></div>
           </div>
           <button
             class="icon-btn theme-toggle"
@@ -1880,9 +1883,10 @@
                 <div class="k"><span class="i">05</span> — BENCHMARKS</div>
                 <h2>Fewer tokens for the same answer.</h2>
                 <p>
-                  Two Claude agents traced the same real flows through a
-                  distributed app (~450 files, 4 services) — one grep-and-read,
-                  one using sgrep. Same model, verified same-quality answers.
+                  Claude agents answered the same questions about a distributed
+                  app (~450 files, 4 services), comparing grep-and-read, plain
+                  sgrep, and sgrep + its graphify call graph. Same model,
+                  verified same-quality answers.
                 </p>
               </div>
               <div class="brow">
@@ -1905,7 +1909,7 @@
               </div>
               <div class="pcard">
                 <div class="ph">
-                  <h3>Total tokens to understand a flow</h3>
+                  <h3>Describe-a-flow question · tokens</h3>
                   <span class="s">lower is better</span>
                 </div>
                 <div class="legend">
@@ -2034,6 +2038,97 @@
               </div>
               <div class="pcard">
                 <div class="ph">
+                  <h3>Connection question · blast radius</h3>
+                  <span class="s">3-way · lower is better</span>
+                </div>
+                <div class="legend">
+                  <span
+                    ><span class="sw" style="background: var(--indigo)"></span
+                    >Manual</span
+                  >
+                  <span
+                    ><span class="sw" style="background: var(--amber)"></span
+                    >raw sgrep</span
+                  >
+                  <span
+                    ><span class="sw" style="background: var(--green-b)"></span
+                    >sgrep + graphify</span
+                  >
+                </div>
+                <div class="chart conn" id="chartConn">
+                  <div class="grp">
+                    <div class="gl">
+                      <span class="gn">tokens</span
+                      ><span class="chip">−64%</span>
+                    </div>
+                    <div class="bar-row">
+                      <span class="who">manual</span>
+                      <div class="track">
+                        <div class="bar manual" style="--w: 100%"></div>
+                      </div>
+                      <span class="val">75,460</span>
+                    </div>
+                    <div class="bar-row">
+                      <span class="who">raw sgrep</span>
+                      <div class="track">
+                        <div
+                          class="bar"
+                          style="--w: 74.2%; background: var(--amber)"
+                        ></div>
+                      </div>
+                      <span class="val">55,954</span>
+                    </div>
+                    <div class="bar-row">
+                      <span class="who">+ graphify</span>
+                      <div class="track">
+                        <div class="bar sgrep" style="--w: 35.9%"></div>
+                      </div>
+                      <span class="val">27,061</span>
+                    </div>
+                  </div>
+                  <div class="grp">
+                    <div class="gl">
+                      <span class="gn">wall-clock</span
+                      ><span class="chip">−36%</span>
+                    </div>
+                    <div class="bar-row">
+                      <span class="who">manual</span>
+                      <div class="track">
+                        <div class="bar manual" style="--w: 59.1%"></div>
+                      </div>
+                      <span class="val">146s</span>
+                    </div>
+                    <div class="bar-row">
+                      <span class="who">raw sgrep</span>
+                      <div class="track">
+                        <div
+                          class="bar"
+                          style="--w: 100%; background: var(--amber)"
+                        ></div>
+                      </div>
+                      <span class="val">247s</span>
+                    </div>
+                    <div class="bar-row">
+                      <span class="who">+ graphify</span>
+                      <div class="track">
+                        <div class="bar sgrep" style="--w: 38.1%"></div>
+                      </div>
+                      <span class="val">94s</span>
+                    </div>
+                  </div>
+                </div>
+                <p class="note">
+                  "What breaks if we change the worker dispatch?" —
+                  <b style="color: var(--ink)">sgrep + graphify</b> used −64%
+                  tokens, read 94% fewer lines, and finished fastest
+                  (<b style="color: var(--ink)">94s</b> vs 146s / 247s). Plain
+                  semantic search can't traverse callers — that arm fell back to
+                  grep. Use <code>trace</code>/<code>impact</code> for connection
+                  questions; plain <code>scan</code> for find/describe.
+                </p>
+              </div>
+              <div class="pcard">
+                <div class="ph">
                   <h3>Latency ladder</h3>
                   <span class="s">3-query batch · lower is better</span>
                 </div>
@@ -2096,24 +2191,27 @@
                     ><i style="background: #28c840"></i>
                     <button
                       class="copy cp"
-                      data-copy='pipx install "git+https://github.com/Lagnajit09/sgrep@v0.2.0"
+                      data-copy='pipx install "git+https://github.com/Lagnajit09/sgrep@v0.3.0"
 sgrep scan "where are JWT tokens verified" ./src'
                     >
                       copy
                     </button>
                   </div>
                   <pre><span class="cm"># global, isolated command (recommended)</span>
-<span class="pr">$</span> pipx install "git+https://github.com/Lagnajit09/sgrep@v0.2.0"
+<span class="pr">$</span> pipx install "git+https://github.com/Lagnajit09/sgrep@v0.3.0"
 
 <span class="cm"># or into the current environment</span>
-<span class="pr">$</span> pip install -e ".[all]"
+<span class="pr">$</span> pip install -e .
 
 <span class="cm"># ask your codebase anything</span>
 <span class="pr">$</span> sgrep scan "where are JWT tokens verified" ./src
 
-<span class="cm"># trace a flow — batch up to 3 queries, one startup</span>
-<span class="pr">$</span> sgrep scan "how are requests authenticated" ./src \
-    -q "service-to-service auth" --json</pre>
+<span class="cm"># batch several questions in one run</span>
+<span class="pr">$</span> sgrep scan "how are requests authenticated" ./src -q "service-to-service auth" --json
+
+<span class="cm"># follow the call graph: trace a flow, or a change's blast radius</span>
+<span class="pr">$</span> sgrep trace  "how is a script dispatched to the worker" ./src
+<span class="pr">$</span> sgrep impact --symbol build_worker_payload ./src</pre>
                 </div>
                 <ul class="facts">
                   <li>
@@ -2136,6 +2234,14 @@ sgrep scan "where are JWT tokens verified" ./src'
                     ><span
                       ><b>Going faster.</b> <code>sgrep serve</code> keeps the
                       model warm; add <code>--daemon</code> to any scan.</span
+                    >
+                  </li>
+                  <li>
+                    <span class="mk">→</span
+                    ><span
+                      ><b>Follow the call graph.</b> <code>sgrep trace</code> and
+                      <code>sgrep impact</code> map callers &amp; callees via
+                      graphify — 2–3× cheaper on connection questions.</span
                     >
                   </li>
                   <li>

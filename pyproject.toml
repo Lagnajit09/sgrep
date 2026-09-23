@@ -1,6 +1,6 @@
 [project]
 name = "sgrep-jev"
-version = "0.2.1"
+version = "0.3.0"
 description = "Semantic grep for codebases, powered by Jev (TypeSafe System One)."
 readme = "README.md"
 requires-python = ">=3.10"
