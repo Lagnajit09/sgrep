@@ -1,5 +1,8 @@
 # sgrep — semantic grep, powered by Jev
 
+<a href="https://jevmade.com/e/sgrep-lagnajit-structure-aware-search"><picture><source media="(prefers-color-scheme: dark)" srcset="https://jevmade.com/badges/featured-on-jevmade-dark.svg"><img src="https://jevmade.com/badges/featured-on-jevmade.svg" alt="Featured on JevMade" width="168" height="54"></picture></a>
+<a href="https://viberank.dev/apps/sgrep" target="_blank" rel="noopener noreferrer"><img src="https://viberank.dev/badge?app=sgrep&theme=dark" alt="sgrep on VibeRank" /></a>
+
 Ask your codebase questions in plain English:
 
 ```bash
